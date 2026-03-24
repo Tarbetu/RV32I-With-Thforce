@@ -13,6 +13,7 @@ lazy val root = (project in file("."))
       "org.chipsalliance" %% "chisel" % chiselVersion,
       "org.scalatest" %% "scalatest" % "3.2.19" % "test",
     ),
+    libraryDependencies += "org.scalameta" % "sbt-scalafmt_2.12_1.0" % "2.5.6"
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
       "-deprecation",
