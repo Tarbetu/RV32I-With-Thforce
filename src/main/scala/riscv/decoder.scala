@@ -8,60 +8,59 @@ class Decoder extends Module {
   val io = IO(new Bundle {
     val instruction = Input(UInt(32.W))
 
-    val rs1 = Output(UInt(5.W))
-    val rs2 = Output(UInt(5.W))
-    val rd = Output(UInt(5.W))
-    val immediate = Output(UInt(12.W))
+    val rs1         = Output(UInt(5.W))
+    val rs2         = Output(UInt(5.W))
+    val rd          = Output(UInt(5.W))
+    val immediate   = Output(UInt(12.W))
     val immediate_u = Output(UInt(20.W))
-    val fenceSucc = Output(UInt(4.W))
-    val fencePred = Output(UInt(4.W))
-    val fenceMask = Output(UInt(4.W))
+    val fenceSucc   = Output(UInt(4.W))
+    val fencePred   = Output(UInt(4.W))
+    val fenceMask   = Output(UInt(4.W))
+    val memRead     = Output(Bool())
+    val memWrite    = Output(Bool())
+    val rdWrite     = Output(Bool())
 
-    val aluOp = Output(AluOp())
-    val rdWrite = Output(Bool())
-    val memRead = Output(Bool())
-    val memWrite = Output(Bool())
-    val branch = Output(Bool())
-    val jump = Output(Bool())
-    val jumpreg = Output(Bool())
-    val loadUpperImm = Output(Bool())
-    val addUpperUpperImm = Output(Bool())
-    val envCall = Output(Bool())
-    val envBreak = Output(Bool())
-    val fence = Output(Bool())
+    val aluOp           = Output(AluOp())
+    val branch          = Output(Bool())
+    val jump            = Output(Bool())
+    val jumpreg         = Output(Bool())
+    val loadUpperImm    = Output(Bool())
+    val addUpperImmToPc = Output(Bool())
+    val envCall         = Output(Bool())
+    val envBreak        = Output(Bool())
+    val fence           = Output(Bool())
 
-    val loadSize = Output(LoadSize())
-    val storeSize = Output(StoreSize())
-    val branchType = Output(StoreSize())
+    val loadSize   = Output(LoadSize())
+    val storeSize  = Output(StoreSize())
+    val branchType = Output(BranchType())
 
     val isImmediate = Output(Bool())
-
   })
 
-  io.rs1 := io.instruction(20, 15)
-  io.rs2 := io.instruction(20, 15)
-  io.rd := io.instruction(12, 7)
-  io.immediate := io.instruction(31, 20)
+  io.rs1         := io.instruction(20, 15)
+  io.rs2         := io.instruction(20, 15)
+  io.rd          := io.instruction(12, 7)
+  io.immediate   := io.instruction(31, 20)
   io.immediate_u := io.instruction(31, 12)
-  io.fenceSucc := io.instruction(23, 20)
-  io.fencePred := io.instruction(27, 24)
-  io.fenceMask := io.instruction(31, 28)
+  io.fenceSucc   := io.instruction(23, 20)
+  io.fencePred   := io.instruction(27, 24)
+  io.fenceMask   := io.instruction(31, 28)
 
-  io.aluOp := AluOp.None
-  io.rdWrite := false.B
-  io.memRead := false.B
-  io.memWrite := false.B
-  io.branch := false.B
-  io.jump := false.B
-  io.jumpreg := false.B
-  io.loadUpperImm := false.B
-  io.addUpperUpperImm := false.B
-  io.envCall := false.B
-  io.envBreak := false.B
-  io.fence := false.B
+  io.aluOp           := AluOp.None
+  io.rdWrite         := false.B
+  io.memRead         := false.B
+  io.memWrite        := false.B
+  io.branch          := false.B
+  io.jump            := false.B
+  io.jumpreg         := false.B
+  io.loadUpperImm    := false.B
+  io.addUpperImmToPc := false.B
+  io.envCall         := false.B
+  io.envBreak        := false.B
+  io.fence           := false.B
 
-  io.loadSize := LoadSize.Byte
-  io.storeSize := StoreSize.Byte
+  io.loadSize   := LoadSize.Byte
+  io.storeSize  := StoreSize.Byte
   io.branchType := BranchType.Equal
 
   io.isImmediate := false.B
@@ -172,7 +171,7 @@ class Decoder extends Module {
     is(jump) {
       io.jump := true.B
 
-      io.immediate := Cat(
+      io.immediate_u := Cat(
         io.instruction(31),
         io.instruction(21, 12),
         io.instruction(22),
@@ -186,7 +185,7 @@ class Decoder extends Module {
       io.loadUpperImm := true.B
     }
     is(auipc) {
-      io.loadUpperImm := true.B
+      io.addUpperImmToPc := true.B
     }
     is(environmental) {
       switch(io.immediate) {
