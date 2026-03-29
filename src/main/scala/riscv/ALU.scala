@@ -14,45 +14,23 @@ class Alu extends Module {
 
   import AluOp._
 
-  io.out := 0.U
-
-  switch (io.op) {
-    is (Add) {
-      io.out := io.lhs + io.rhs
-    }
-    is (Sub) {
-      io.out := io.lhs - io.rhs
-    }
-    is (Xor) {
-      io.out := io.lhs ^ io.rhs
-    }
-    is (Or) {
-      io.out := io.lhs | io.rhs
-    }
-    is (And) {
-      io.out := io.lhs & io.rhs
-    }
-    is (ShiftRightLogical) {
-      io.out := io.lhs >> io.rhs(4, 0)
-    }
-    is (ShiftLeftLogical) {
-      io.out := io.lhs << io.rhs(4, 0)
-    }
-    is (ShiftRightArith) {
-      io.out := (io.lhs.asSInt >> io.rhs(4, 0)).asUInt
-    }
-    is (SetLessThan) {
-      io.out := (io.lhs.asSInt < io.rhs.asSInt).asUInt
-    }
-    is (SetLessThanUnsigned) {
-      io.out := (io.lhs < io.rhs).asUInt
-    }
-  }
+  io.out := MuxLookup(io.op, 0.U)(Seq(
+    Add                -> (io.lhs + io.rhs),
+    Sub                -> (io.lhs - io.rhs),
+    Xor                -> (io.lhs ^ io.rhs),
+    Or                 -> (io.lhs | io.rhs),
+    And                -> (io.lhs & io.rhs),
+    ShiftRightLogical  -> (io.lhs >> io.rhs(4, 0)),
+    ShiftLeftLogical   -> (io.lhs << io.rhs(4, 0)),
+    ShiftRightArith    -> (io.lhs.asSInt >> io.rhs(4, 0)).asUInt,
+    SetLessThan        -> (io.lhs.asSInt < io.rhs.asSInt).asUInt,
+    SetLessThanUnsigned -> (io.lhs < io.rhs).asUInt,
+  ))
 }
 
-object Alu extends App {
-  ChiselStage.emitSystemVerilogFile(
-    new Alu,
-    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
-  )
-}
+// object Alu extends App {
+//   ChiselStage.emitSystemVerilogFile(
+//     new Alu,
+//     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
+//   )
+// }
