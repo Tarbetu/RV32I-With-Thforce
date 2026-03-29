@@ -3,13 +3,22 @@ package riscv
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
+import scala.io.Source.fromFile
 
 class Core extends Module {
   val io = IO(new Bundle {
-    val instruction = Input(UInt(32.W))
     val output = Output(UInt(32.W))
+    val halt = Output(Bool())
   })
 
+  val instructionMem = VecInit(
+    fromFile("program.hex")
+      .getLines()
+      .map(line => Integer.parseUnsignedInt(line.trim, 16).U(32.W))
+      .toSeq
+  )
+
+  val dataMem = Mem(1024, UInt(32.W))
   val decoder = Module(new Decoder)
   val regFile = Module(new RegFile)
   val alu = Module(new Alu)
@@ -25,7 +34,11 @@ class Core extends Module {
   alu.io.rhs := 0.U
   regFile.io.rd_data := 0.U
 
-  decoder.io.instruction := io.instruction
+  val instruction = instructionMem(pc)
+
+  decoder.io.instruction := instruction
+
+  pc := pc + 4.U
 
   when(decoder.io.aluOp =/= AluOp.None) {
     regFile.io.rs1_addr := decoder.io.rs1
@@ -50,8 +63,6 @@ class Core extends Module {
     regFile.io.rd_write := true.B
 
     io.output := regFile.io.rd_data
-
-    pc := pc + 4.U
   }.elsewhen(decoder.io.jump) {
     regFile.io.rd_addr := decoder.io.rd
     regFile.io.rd_data := pc + 4.U;
@@ -76,39 +87,31 @@ class Core extends Module {
       is(Equal) {
         when(regFile.io.rs1_data === regFile.io.rs2_data) {
           pc := pc + decoder.io.immediate
-        }.otherwise {
-          pc := pc + 4.U
         }
       }
       is(NotEqual) {
         when(regFile.io.rs1_data =/= regFile.io.rs2_data) {
           pc := pc + decoder.io.immediate
-        }.otherwise {
-          pc := pc + 4.U
         }
       }
       is(LessThan) {
         when(regFile.io.rs1_data.asSInt < regFile.io.rs2_data.asSInt) {
           pc := pc + decoder.io.immediate
-        }.otherwise { pc := pc + 4.U }
+        }
       }
       is(GreaterEqual) {
         when(regFile.io.rs1_data.asSInt >= regFile.io.rs2_data.asSInt) {
           pc := pc + decoder.io.immediate
-        }.otherwise { pc := pc + 4.U }
+        }
       }
       is(LessThanUnsigned) {
         when(regFile.io.rs1_data < regFile.io.rs2_data) {
           pc := pc + decoder.io.immediate
-        }.otherwise {
-          pc := pc + 4.U
         }
       }
       is(GreaterEqualUnsigned) {
         when(regFile.io.rs1_data >= regFile.io.rs2_data) {
           pc := pc + decoder.io.immediate
-        }.otherwise {
-          pc := pc + 4.U
         }
       }
     }
@@ -118,13 +121,58 @@ class Core extends Module {
     regFile.io.rd_write := true.B
 
     io.output := decoder.io.immediate_u << 12.U
-    pc := pc + 4.U
   }.elsewhen(decoder.io.addUpperImmToPc) {
     regFile.io.rd_addr := decoder.io.rd
     regFile.io.rd_data := pc + (decoder.io.immediate << 12.U)
     regFile.io.rd_write := true.B
 
     io.output := pc + (decoder.io.immediate << 12.U)
-    pc := pc + 4.U
+  }.elsewhen(decoder.io.memRead) {
+    regFile.io.rs1_addr := decoder.io.rs1
+    regFile.io.rd_addr := decoder.io.rd
+
+    val dataAddr = regFile.io.rs1_data + decoder.io.immediate
+    val rawData = dataMem(dataAddr)
+
+    import LoadSize._
+    val loadData = MuxLookup(decoder.io.loadSize, rawData)(
+      Seq(
+        Byte -> Cat(Fill(24, rawData(7)), rawData(7, 0)),
+        Half -> Cat(Fill(16, rawData(15)), rawData(15, 0)),
+        Word -> rawData,
+        ByteUnsigned -> Cat(0.U(24.W), rawData(7, 0)),
+        HalfUnsigned -> Cat(0.U(16.W), rawData(15, 0))
+      )
+    )
+
+    regFile.io.rd_data := loadData
+    regFile.io.rd_write := true.B
+
+    io.output := loadData
+  }.elsewhen(decoder.io.memWrite) {
+    regFile.io.rs1_addr := decoder.io.rs1
+    regFile.io.rs2_addr := decoder.io.rs2
+
+    val dataAddr = regFile.io.rs1_data + decoder.io.immediate
+
+    import StoreSize._
+    val data = MuxLookup(decoder.io.storeSize, regFile.io.rs2_data)(
+      Seq(
+        Byte -> Cat(
+          Fill(24, regFile.io.rs2_data(7)),
+          regFile.io.rs2_data(7, 0)
+        ),
+        Half -> Cat(
+          Fill(16, regFile.io.rs2_data(15)),
+          regFile.io.rs2_data(15, 0)
+        ),
+        Word -> regFile.io.rs2_data
+      )
+    )
+
+    dataMem.write(dataAddr, data)
+    io.output := data
+  }.elsewhen(decoder.io.envCall || decoder.io.envBreak) {
+    io.halt := true.B
   }
 }
