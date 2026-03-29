@@ -2,7 +2,6 @@ package riscv
 
 import chisel3._
 import chisel3.util._
-import _root_.circt.stage.ChiselStage
 
 class Alu extends Module {
   val io = IO(new Bundle {
@@ -27,10 +26,3 @@ class Alu extends Module {
     SetLessThanUnsigned -> (io.lhs < io.rhs).asUInt,
   ))
 }
-
-// object Alu extends App {
-//   ChiselStage.emitSystemVerilogFile(
-//     new Alu,
-//     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable")
-//   )
-// }

@@ -2,21 +2,14 @@ package riscv
 
 import chisel3._
 import chisel3.util._
-import _root_.circt.stage.ChiselStage
-import scala.io.Source.fromFile
 
-class Core extends Module {
+class Core(program: Seq[UInt]) extends Module {
   val io = IO(new Bundle {
     val output = Output(UInt(32.W))
     val halt = Output(Bool())
   })
 
-  val instructionMem = VecInit(
-    fromFile("program.hex")
-      .getLines()
-      .map(line => Integer.parseUnsignedInt(line.trim, 16).U(32.W))
-      .toSeq
-  )
+  val instructionMem = VecInit(program)
 
   val dataMem = Mem(1024, UInt(32.W))
   val decoder = Module(new Decoder)
@@ -25,6 +18,7 @@ class Core extends Module {
   val pc = RegInit(0.U(32.W))
 
   io.output := 0.U
+  io.halt := false.B
   regFile.io.rd_write := false.B
   regFile.io.rd_addr := 0.U
   regFile.io.rs1_addr := 0.U
