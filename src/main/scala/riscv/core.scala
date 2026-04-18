@@ -223,13 +223,18 @@ class Core(program: Seq[UInt]) extends Module {
 
         regFile.io.thunkSnapshot := true.B
 
+        regFile.io.thunkNewStatus := Memorize
+
         pc := fn_ptr
       }
       is(Memorize) {
         dataMem.write(destinationAddr, fn_ptr)
-        dataMem.write(destinationAddr + 4.U, regFile.io.returnedValue)
+        dataMem.write(destinationAddr + 1.U, regFile.io.returnedValue)
 
         regFile.io.thunkRestore := true.B
+
+        regFile.io.thunkNewStatus := Idle
+        regFile.io.thunkWrite := true.B
 
         pc := pc + 4.U
       }

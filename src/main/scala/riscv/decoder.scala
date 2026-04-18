@@ -72,7 +72,7 @@ class Decoder extends Module {
   val funct3 = io.instruction(15, 12)
   val funct7 = io.immediate(11, 5)
 
-  io.thunkAddr := funct7(3, 0) // Modulo 16
+  io.thunkAddr := io.immediate(3, 0) // Modulo 16
 
   val opcode = {
     val instruction = io.instruction(6, 0)
