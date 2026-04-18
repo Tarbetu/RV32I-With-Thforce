@@ -5,7 +5,7 @@ import chisel3.util._
 
 class Core(program: Seq[UInt]) extends Module {
   val io = IO(new Bundle {
-    val output = Output(UInt(32.W))
+    val debug = Output(UInt(32.W))
     val halt = Output(Bool())
   })
 
@@ -15,117 +15,137 @@ class Core(program: Seq[UInt]) extends Module {
   val decoder = Module(new Decoder)
   val regFile = Module(new RegFile)
   val alu = Module(new Alu)
+
   val pc = RegInit(0.U(32.W))
 
-  io.output := 0.U
+  io.debug := 0.U
   io.halt := false.B
-  regFile.io.rd_write := false.B
-  regFile.io.rd_addr := 0.U
-  regFile.io.rs1_addr := 0.U
-  regFile.io.rs2_addr := 0.U
+
+  regFile.io.rdWrite := false.B
+  regFile.io.rdAddr := 0.U
+
+  regFile.io.rs1Addr := 0.U
+  regFile.io.rs2Addr := 0.U
+
+  regFile.io.thunkAddr := 0.U
+  regFile.io.thunkWrite := false.B
+
   alu.io.op := AluOp.None
   alu.io.lhs := 0.U
   alu.io.rhs := 0.U
-  regFile.io.rd_data := 0.U
+
+  regFile.io.rdData := 0.U
 
   val instruction = instructionMem(pc)
 
   decoder.io.instruction := instruction
 
-  pc := pc + 4.U
-
   when(decoder.io.aluOp =/= AluOp.None) {
-    regFile.io.rs1_addr := decoder.io.rs1
-    regFile.io.rd_addr := decoder.io.rd
+    regFile.io.rs1Addr := decoder.io.rs1
+    regFile.io.rdAddr := decoder.io.rd
     alu.io.op := decoder.io.aluOp
 
-    alu.io.lhs := regFile.io.rs1_data
+    alu.io.lhs := regFile.io.rs1Data
 
     when(decoder.io.isImmediate) {
-      regFile.io.rs2_addr := 0.U
+      regFile.io.rs2Addr := 0.U
 
       alu.io.rhs := decoder.io.immediate
-
     }.otherwise {
-      regFile.io.rs2_addr := decoder.io.rs2
+      regFile.io.rs2Addr := decoder.io.rs2
 
-      alu.io.rhs := regFile.io.rs2_data
-
+      alu.io.rhs := regFile.io.rs2Data
     }
 
-    regFile.io.rd_data := alu.io.out
-    regFile.io.rd_write := true.B
+    regFile.io.rdData := alu.io.out
+    regFile.io.rdWrite := true.B
 
-    io.output := regFile.io.rd_data
+    io.debug := regFile.io.rdData
+
+    pc := pc + 4.U
   }.elsewhen(decoder.io.jump) {
-    regFile.io.rd_addr := decoder.io.rd
-    regFile.io.rd_data := pc + 4.U;
-    regFile.io.rd_write := true.B
+    regFile.io.rdAddr := decoder.io.rd
+    regFile.io.rdData := pc + 4.U;
+    regFile.io.rdWrite := true.B
 
-    io.output := pc + decoder.io.immediate_u
+    io.debug := pc + decoder.io.immediate_u
     pc := pc + decoder.io.immediate_u
   }.elsewhen(decoder.io.jumpreg) {
-    regFile.io.rd_addr := decoder.io.rd
-    regFile.io.rd_data := pc + 4.U
-    regFile.io.rd_write := true.B
+    regFile.io.rdAddr := decoder.io.rd
+    regFile.io.rdData := pc + 4.U
+    regFile.io.rdWrite := true.B
 
-    regFile.io.rs1_addr := decoder.io.rs1
-    io.output := regFile.io.rs1_data + decoder.io.immediate
-    pc := regFile.io.rs1_data + decoder.io.immediate
+    regFile.io.rs1Addr := decoder.io.rs1
+    io.debug := regFile.io.rs1Data + decoder.io.immediate
+    pc := regFile.io.rs1Data + decoder.io.immediate
   }.elsewhen(decoder.io.branch) {
-    regFile.io.rs1_addr := decoder.io.rs1
-    regFile.io.rs2_addr := decoder.io.rs2
+    regFile.io.rs1Addr := decoder.io.rs1
+    regFile.io.rs2Addr := decoder.io.rs2
 
     import BranchType._
     switch(decoder.io.branchType) {
       is(Equal) {
-        when(regFile.io.rs1_data === regFile.io.rs2_data) {
+        when(regFile.io.rs1Data === regFile.io.rs2Data) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
       is(NotEqual) {
-        when(regFile.io.rs1_data =/= regFile.io.rs2_data) {
+        when(regFile.io.rs1Data =/= regFile.io.rs2Data) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
       is(LessThan) {
-        when(regFile.io.rs1_data.asSInt < regFile.io.rs2_data.asSInt) {
+        when(regFile.io.rs1Data.asSInt < regFile.io.rs2Data.asSInt) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
       is(GreaterEqual) {
-        when(regFile.io.rs1_data.asSInt >= regFile.io.rs2_data.asSInt) {
+        when(regFile.io.rs1Data.asSInt >= regFile.io.rs2Data.asSInt) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
       is(LessThanUnsigned) {
-        when(regFile.io.rs1_data < regFile.io.rs2_data) {
+        when(regFile.io.rs1Data < regFile.io.rs2Data) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
       is(GreaterEqualUnsigned) {
-        when(regFile.io.rs1_data >= regFile.io.rs2_data) {
+        when(regFile.io.rs1Data >= regFile.io.rs2Data) {
           pc := pc + decoder.io.immediate
+        }.otherwise {
+          pc := pc + 4.U
         }
       }
     }
   }.elsewhen(decoder.io.loadUpperImm) {
-    regFile.io.rd_addr := decoder.io.rd
-    regFile.io.rd_data := decoder.io.immediate_u << 12.U
-    regFile.io.rd_write := true.B
+    regFile.io.rdAddr := decoder.io.rd
+    regFile.io.rdData := decoder.io.immediate_u << 12.U
+    regFile.io.rdWrite := true.B
 
-    io.output := decoder.io.immediate_u << 12.U
+    io.debug := decoder.io.immediate_u << 12.U
+    pc := pc + 4.U
   }.elsewhen(decoder.io.addUpperImmToPc) {
-    regFile.io.rd_addr := decoder.io.rd
-    regFile.io.rd_data := pc + (decoder.io.immediate << 12.U)
-    regFile.io.rd_write := true.B
+    regFile.io.rdAddr := decoder.io.rd
+    regFile.io.rdData := pc + (decoder.io.immediate << 12.U)
+    regFile.io.rdWrite := true.B
 
-    io.output := pc + (decoder.io.immediate << 12.U)
+    io.debug := pc + (decoder.io.immediate << 12.U)
+    pc := pc + 4.U
   }.elsewhen(decoder.io.memRead) {
-    regFile.io.rs1_addr := decoder.io.rs1
-    regFile.io.rd_addr := decoder.io.rd
+    regFile.io.rs1Addr := decoder.io.rs1
+    regFile.io.rdAddr := decoder.io.rd
 
-    val dataAddr = regFile.io.rs1_data + decoder.io.immediate
+    val dataAddr = regFile.io.rs1Data + decoder.io.immediate
     val rawData = dataMem(dataAddr)
 
     import LoadSize._
@@ -139,34 +159,84 @@ class Core(program: Seq[UInt]) extends Module {
       )
     )
 
-    regFile.io.rd_data := loadData
-    regFile.io.rd_write := true.B
+    regFile.io.rdData := loadData
+    regFile.io.rdWrite := true.B
 
-    io.output := loadData
+    io.debug := loadData
+    pc := pc + 4.U
   }.elsewhen(decoder.io.memWrite) {
-    regFile.io.rs1_addr := decoder.io.rs1
-    regFile.io.rs2_addr := decoder.io.rs2
+    regFile.io.rs1Addr := decoder.io.rs1
+    regFile.io.rs2Addr := decoder.io.rs2
 
-    val dataAddr = regFile.io.rs1_data + decoder.io.immediate
+    val dataAddr = regFile.io.rs1Data + decoder.io.immediate
 
     import StoreSize._
-    val data = MuxLookup(decoder.io.storeSize, regFile.io.rs2_data)(
+    val data = MuxLookup(decoder.io.storeSize, regFile.io.rs2Data)(
       Seq(
         Byte -> Cat(
-          Fill(24, regFile.io.rs2_data(7)),
-          regFile.io.rs2_data(7, 0)
+          Fill(24, regFile.io.rs2Data(7)),
+          regFile.io.rs2Data(7, 0)
         ),
         Half -> Cat(
-          Fill(16, regFile.io.rs2_data(15)),
-          regFile.io.rs2_data(15, 0)
+          Fill(16, regFile.io.rs2Data(15)),
+          regFile.io.rs2Data(15, 0)
         ),
-        Word -> regFile.io.rs2_data
+        Word -> regFile.io.rs2Data
       )
     )
 
     dataMem.write(dataAddr, data)
-    io.output := data
+    io.debug := data
+    pc := pc + 4.U
   }.elsewhen(decoder.io.envCall || decoder.io.envBreak) {
     io.halt := true.B
+  }.elsewhen(decoder.io.thforce) {
+    regFile.io.thunkAddr := decoder.io.thunkAddr
+    val thunkStatus = regFile.io.thunkCurrentStatus
+
+    regFile.io.rs1Addr := decoder.io.rs1
+    val fn_ptr = regFile.io.rs1Data
+
+    regFile.io.rs2Addr := decoder.io.rd
+    val destinationAddr = regFile.io.rs2Data
+
+    import ThunkStatus._
+
+    switch(thunkStatus) {
+      is(Idle) {
+        val destinationData = dataMem(destinationAddr)
+
+        when(destinationAddr =/= fn_ptr) {
+          regFile.io.thunkNewStatus := Visiting
+          regFile.io.thunkWrite := true.B
+        }.otherwise {
+          regFile.io.rdAddr  := decoder.io.rd
+          regFile.io.rdData  := dataMem(destinationAddr + 4.U)
+          regFile.io.rdWrite := true.B
+
+          pc := pc + 4.U
+        }
+      }
+      is(Visiting) {
+        regFile.io.returnAddress := pc
+        regFile.io.returnAddressWrite := true.B
+
+        regFile.io.thunkSnapshot := true.B
+
+        pc := fn_ptr
+      }
+      is(Memorize) {
+        dataMem.write(destinationAddr, fn_ptr)
+        dataMem.write(destinationAddr + 4.U, regFile.io.returnedValue)
+
+        regFile.io.thunkRestore := true.B
+
+        pc := pc + 4.U
+      }
+      is(Locked) {
+        // Do nothing, go away
+        pc := pc + 4.U
+      }
+    }
   }
 }
