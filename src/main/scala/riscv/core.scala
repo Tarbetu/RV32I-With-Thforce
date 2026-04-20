@@ -210,10 +210,6 @@ class Core(program: Seq[UInt]) extends Module {
           regFile.io.thunkNewStatus := Visiting
           regFile.io.thunkWrite := true.B
         }.otherwise {
-          regFile.io.rdAddr  := decoder.io.rd
-          regFile.io.rdData  := dataMem(destinationAddr + 4.U)
-          regFile.io.rdWrite := true.B
-
           pc := pc + 4.U
         }
       }
@@ -235,6 +231,10 @@ class Core(program: Seq[UInt]) extends Module {
 
         regFile.io.thunkNewStatus := Idle
         regFile.io.thunkWrite := true.B
+
+        regFile.io.rdAddr  := decoder.io.rd
+        regFile.io.rdData  := dataMem(destinationAddr + 4.U)
+        regFile.io.rdWrite := true.B
 
         pc := pc + 4.U
       }
