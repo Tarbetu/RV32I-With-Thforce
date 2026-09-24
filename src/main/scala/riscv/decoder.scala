@@ -20,7 +20,7 @@ class Decoder extends Module {
     val memWrite    = Output(Bool())
     val rdWrite     = Output(Bool())
     val thforce     = Output(Bool())
-    val thunkAddr   = Output(ThunkStatus())
+    val thunkAddr   = Output(UInt(3.W))
 
     val aluOp           = Output(AluOp())
     val branch          = Output(Bool())
