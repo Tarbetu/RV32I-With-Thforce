@@ -29,6 +29,11 @@ class Core(program: Seq[UInt]) extends Module {
 
   regFile.io.thunkAddr := 0.U
   regFile.io.thunkWrite := false.B
+  regFile.io.returnAddress := 0.U
+  regFile.io.returnAddressWrite := false.B
+  regFile.io.thunkNewStatus := ThunkStatus.Idle
+  regFile.io.thunkSnapshot := false.B
+  regFile.io.thunkRestore := false.B
 
   alu.io.op := AluOp.None
   alu.io.lhs := 0.U
@@ -236,10 +241,6 @@ class Core(program: Seq[UInt]) extends Module {
         regFile.io.rdData  := dataMem(destinationAddr + 4.U)
         regFile.io.rdWrite := true.B
 
-        pc := pc + 4.U
-      }
-      is(Locked) {
-        // Do nothing, go away
         pc := pc + 4.U
       }
     }

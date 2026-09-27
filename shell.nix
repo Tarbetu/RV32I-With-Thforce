@@ -24,7 +24,7 @@ let
             exit 1
          fi
 
-         sbt run
+         cat examples/with_thforce.asm | sbt run
 
          if [ ! -f "generated/filelist.f" ]; then
             echo "Error: No 'generated/filelist.f' found after build"
@@ -39,6 +39,7 @@ let
          obj_dir/VCore
     '';
   };
+  riscv-toolchain = pkgsCross.riscv32-embedded;
 in
 mkShell {
   buildInputs = [
@@ -48,5 +49,6 @@ mkShell {
     yosys
     verilator
     verilator-compare
+    riscv-toolchain.buildPackages.binutils
   ];
 }

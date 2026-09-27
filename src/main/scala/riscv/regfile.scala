@@ -48,11 +48,8 @@ class RegFile extends Module {
     registers.write(io.rdAddr - 1.U, io.rdData)
   }
 
-  io.thunkCurrentStatus := Mux(
-    io.thunkWrite,
-    ThunkStatus.Locked,
-    thunkMem(io.thunkAddr)
-  )
+  io.thunkCurrentStatus := thunkMem(io.thunkAddr)
+
 
   when(io.thunkWrite) {
     thunkMem.write(io.thunkAddr, io.thunkNewStatus)
