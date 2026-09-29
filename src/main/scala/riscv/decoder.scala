@@ -20,7 +20,7 @@ class Decoder extends Module {
     val memWrite    = Output(Bool())
     val rdWrite     = Output(Bool())
     val thforce     = Output(Bool())
-    val thunkAddr   = Output(UInt(3.W))
+    val thunkAddr   = Output(UInt(4.W))
 
     val aluOp           = Output(AluOp())
     val branch          = Output(Bool())
@@ -39,9 +39,9 @@ class Decoder extends Module {
     val isImmediate = Output(Bool())
   })
 
-  io.rs1         := io.instruction(20, 15)
-  io.rs2         := io.instruction(20, 15)
-  io.rd          := io.instruction(12, 7)
+  io.rs1         := io.instruction(19, 15)
+  io.rs2         := io.instruction(24, 20)
+  io.rd          := io.instruction(11, 7)
   io.immediate   := io.instruction(31, 20)
   io.immediate_u := io.instruction(31, 12)
   io.fenceSucc   := io.instruction(23, 20)
@@ -69,7 +69,7 @@ class Decoder extends Module {
 
   io.isImmediate := false.B
 
-  val funct3 = io.instruction(15, 12)
+  val funct3 = io.instruction(14, 12)
   val funct7 = io.immediate(11, 5)
 
   io.thunkAddr := io.immediate(3, 0) // Modulo 16
@@ -179,9 +179,9 @@ class Decoder extends Module {
 
       io.immediate_u := Cat(
         io.instruction(31),
-        io.instruction(21, 12),
+        io.instruction(19, 12),
         io.instruction(22),
-        io.instruction(30, 23)
+        io.instruction(30, 21)
       )
     }
     is(jumpreg) {

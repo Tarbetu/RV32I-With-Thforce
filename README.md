@@ -23,7 +23,7 @@ THFORCE rs1, rd, id
 
 Where:
 - `rs1` is the register holding the function pointer
-- `rd` is the register holding the pointer to where the result will be stored. The expected data structure at that address is `{fn_ptr, value}`
+- `rd` is the register holding the **byte address** of where the result is stored. The expected data structure is two consecutive 32-bit words: `fn_ptr` at `rd` and `value` at `rd + 4`
 - `id` is the immediate value identifying the thunk. There can be at most 16 thunks, with IDs starting from `0`
 
 ## Behavior
@@ -32,7 +32,7 @@ Where:
 - If it is in the **Idle** state, it checks the function pointer at the address in `rd`. If it matches `rs1`, the thunk is already forced and the value is ready — THFORCE reads the result and writes it to `rd`.
 - If it is not yet forced, THFORCE moves into the **Visiting** state. It saves the current register context to the thunk's dedicated memory, writes the return address to `x1`, and jumps to the function's address. Arguments are passed via `a0–a7` per the standard calling convention.
 - If the thunk is currently being evaluated (e.g. due to a recursive call), it is in the **Locked** state and THFORCE does nothing.
-- After the function returns, THFORCE enters the **Memorize** state. It overwrites the `fn_ptr` field at the address in `rd` with the function pointer as a sentinel value (indicating the thunk is now forced), writes the return value from `a0` to the next word, restores the saved register context, and transitions back to **Idle**.
+- After the function returns, THFORCE enters the **Memorize** state. It overwrites the `fn_ptr` field at the address in `rd` with the function pointer as a sentinel value (indicating the thunk is now forced), writes the return value from `a0` to `rd + 4`, restores the saved register context, and transitions back to **Idle**.
 
 # How to Run
 

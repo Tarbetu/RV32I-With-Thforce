@@ -61,13 +61,15 @@ class RegFile extends Module {
 
   when (io.thunkSnapshot) {
     for (i <- 0 until 31) {
-      thunkContextes(io.thunkAddr * 31.U + i.U) := registers.read(i.U)
+      thunkContextes.write(io.thunkAddr * 31.U + i.U, registers.read(i.U))
     }
   }
 
   when (io.thunkRestore) {
     for (i <- 0 until 31) {
-      registers.write(i.U, thunkContextes(io.thunkAddr * 31.U + i.U))
+      when (!(io.rdWrite && io.rdAddr =/= 0.U && (io.rdAddr - 1.U) === i.U)) {
+        registers.write(i.U, thunkContextes(io.thunkAddr * 31.U + i.U))
+      }
     }
   }
 }
