@@ -1,5 +1,9 @@
-# Think about the following code as a function call with a return value. The function is called with the address of the function in rs1 and the argument in a0. The return value is stored in rd. The function is called with a sentinel check to see if it has been called before.
-# If it has, the memorized result is returned. If not, the context is saved, the function is called, and the result is stored in rd.
+# Think about the following code as a function call with a return value.
+# The function is called with the address of the function in rs1 and the argument in a0.
+# The return value is stored in rd.
+# The function is called with a sentinel check to see if it has been called before.
+# If it has, the memorized result is returned.
+# If not, the context is saved, the function is called, and the result is stored in rd.
 
 # t5 holding the pointer of the result location (rd, which is {fn_ptr, value_ptr})
 .set rd, t5
@@ -45,7 +49,8 @@ SW    x29, 108(sp)
 SW    x30, 112(sp)
 SW    x31, 116(sp)
 
-# Call the function
+# Call the function, and prepare the first argument
+ADDI  a0,   2, 0
 JALR  ra, rs1, 0
 
 # Write sentinel
