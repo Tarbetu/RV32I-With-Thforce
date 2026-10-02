@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
 
   auto vcore = std::make_unique<VCore>(contextp.get());
 
-  for (unsigned cycle = 0; (cycle < CYCLE_LIMIT) || !contextp->gotFinish(); cycle++) {
+  for (unsigned cycle = 0; (cycle < CYCLE_LIMIT) || !vcore->halt(); cycle++) {
     vcore->eval();
   }
 }

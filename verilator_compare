@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+if [ ! -f "build.sbt" ]; then
+    echo "Error: No 'build.sbt' detected"
+    exit1
+fi
+
+if [ ! -f "sim.cpp" ]; then
+    echo "Error: No 'sim.cpp' detected"
+    exit 1
+fi
+
+cat examples/without_thforce.asm | sbt run
+
+if [ ! -f "generated/filelist.f" ]; then
+    echo "Error: No 'generated/filelist.f' found after build"
+    exit 1
+fi
+
+cd generated
+echo "--------- V E R I L A T O R (Without Thforce) ---------"
+verilator --cc --exe --build -f filelist.f ../sim.cpp --top-module Core
+
+echo "--------- S I M U L A T I O N (Without Thforce) ---------"
+obj_dir/VCore
+
+cat examples/with_thforce.asm | sbt run
