@@ -50,7 +50,6 @@ class RegFile extends Module {
 
   io.thunkCurrentStatus := thunkMem(io.thunkAddr)
 
-
   when(io.thunkWrite) {
     thunkMem.write(io.thunkAddr, io.thunkNewStatus)
   }

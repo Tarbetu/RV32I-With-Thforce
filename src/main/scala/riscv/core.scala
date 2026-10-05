@@ -272,8 +272,8 @@ class Core(program: Seq[UInt]) extends Module {
         regFile.io.returnAddressWrite := true.B
 
         regFile.io.thunkSnapshot := true.B
-
         regFile.io.thunkNewStatus := Memorize
+        regFile.io.thunkWrite := true.B
 
         pc := fn_ptr
       }
