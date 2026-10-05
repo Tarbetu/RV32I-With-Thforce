@@ -23,7 +23,7 @@ fi
 
 cd generated
 echo "--------- V E R I L A T O R (Without Thforce) ---------"
-verilator --cc --exe --build -f filelist.f ../sim.cpp --top-module Core
+verilator --cc --exe --build --trace -f filelist.f ../sim.cpp --top-module Core
 
 echo "--------- S I M U L A T I O N (Without Thforce) ---------"
 obj_dir/VCore
@@ -46,7 +46,11 @@ fi
 cd generated
 
 echo "--------- V E R I L A T O R (With Thforce) ---------"
-verilator --cc --exe --build -f filelist.f ../sim.cpp --top-module Core
+verilator --cc --exe --build --trace -f filelist.f ../sim.cpp --top-module Core
 
 echo "--------- S I M U L A T I O N (With Thforce) ---------"
 obj_dir/VCore
+
+# Cleanup the mess
+rm *.{elf, o, hex, vcd}
+rm -rf obj_dir

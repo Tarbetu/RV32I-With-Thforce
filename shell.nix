@@ -13,6 +13,7 @@ mkShell {
     yosys
     verilator
     xxd
+    surfer
     riscv-toolchain.buildPackages.binutils
   ];
 }
