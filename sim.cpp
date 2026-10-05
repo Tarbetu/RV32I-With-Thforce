@@ -1,6 +1,7 @@
 #include "VCore.h"
 #include "verilated.h"
 #include <memory>
+#include <iostream>
 
 // We expect to finish it under way under 1000 for this project.
 // Let's keep this as a safety limit
@@ -21,7 +22,20 @@ int main(int argc, char** argv) {
 
   auto vcore = std::make_unique<VCore>(contextp.get());
 
-  for (unsigned cycle = 0; (cycle < CYCLE_LIMIT) || !vcore->halt(); cycle++) {
+  unsigned cycle = 0;
+
+  while (cycle < CYCLE_LIMIT && !vcore->io_halt) {
+    vcore->clock = 0;
     vcore->eval();
+
+    vcore->clock = 1;
+    vcore->eval();
+
+    contextp->timeInc(1);
+    cycle++;
   }
+
+  vcore->final();
+
+  std::cout << "Simulation finished after " << cycle << " cycles." << std::endl;
 }

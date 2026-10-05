@@ -3,20 +3,23 @@ package riscv
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import scala.io.Source.fromFile
 
 object Main extends App {
-  val program = if (System.in.available() > 0) {
-    scala.io.Source.stdin
-      .getLines()
-      .filter(_.nonEmpty)
-      .map(line => Integer.parseUnsignedInt(line.trim, 16).U(32.W))
-      .toSeq
-  } else {
-    Seq(
-      "h00500093".U(32.W),  // addi x1, x0, 5
-      "h00A00113".U(32.W),  // addi x2, x0, 10
-    )
+  val program: Seq[UInt] = sys.env.get("PROG") match {
+    case Some(prog) =>
+      scala.io.Source.fromFile(prog)
+        .getLines()
+        .drop(1)
+        .flatMap(_.split("\\s+"))
+        .filter(_.nonEmpty)
+        .map(hex => BigInt(hex, 16).U(32.W))
+        .toSeq
+    case None =>
+      Seq(
+        BigInt("00500093", 16).U(32.W),  // addi x1, x0, 5
+        BigInt("00A00113", 16).U(32.W),  // addi x2, x0, 10
+        BigInt("00100073", 16).U(32.W)   // ebreak
+      )
   }
 
   ChiselStage.emitSystemVerilogFile(

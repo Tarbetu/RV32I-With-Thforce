@@ -12,6 +12,7 @@ mkShell {
     metals
     yosys
     verilator
+    xxd
     riscv-toolchain.buildPackages.binutils
   ];
 }

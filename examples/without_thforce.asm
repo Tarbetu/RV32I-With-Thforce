@@ -6,15 +6,13 @@
 # If not, the context is saved, the function is called, and the result is stored in rd.
 
 # t5 holding the pointer of the result location (rd, which is {fn_ptr, value_ptr})
-.set rd, t5
-ADDI rd, 1000, 0
+LI t5, 1000
 # t1 holding the pointer of the value (rs1)
-.set rs1, t6
-LA rs1, the_function
+LA t6, the_function
 
 # Sentinel check
-LW    t0, 0(rd)
-BEQ   t0, rs1, forced
+LW    t0, 0(t5)
+BEQ   t0, t6, forced
 
 # Save the context
 ADDI  sp, sp, -120
@@ -50,13 +48,13 @@ SW    x30, 112(sp)
 SW    x31, 116(sp)
 
 # Call the function, and prepare the first argument
-ADDI  a0,   2, 0
-JALR  ra, rs1, 0
+LI    a0,  2
+JALR  ra, t6, 0
 
 # Write sentinel
 return_point:
-    SW    rs1, 0(rd)
-    SW    a0,  4(rd)
+    SW    t6, 0(t5)
+    SW    a0,  4(t5)
 
     # Reload context from the snapshot
     LW    x1,   0(sp)
@@ -93,7 +91,7 @@ return_point:
 
 forced:
     # Take the memorized result
-    LW  a0, 4(rd)
+    LW  a0, 4(t5)
     EBREAK
 
 the_function:

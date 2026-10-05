@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-cd ..
-
 if [ ! -f "build.sbt" ]; then
     echo "Error: No 'build.sbt' detected"
     exit1
@@ -12,7 +10,11 @@ if [ ! -f "sim.cpp" ]; then
     exit 1
 fi
 
-cat examples/without_thforce.asm | sbt run
+riscv32-none-elf-as -march=rv32i -mabi=ilp32 examples/without_thforce.asm -o generated/without_thforce.o
+riscv32-none-elf-ld -T link.ld generated/without_thforce.o -o generated/without_thforce.elf
+riscv32-none-elf-objcopy -O verilog --verilog-data-width=4 generated/without_thforce.elf generated/without_thforce.hex
+
+PROG="generated/without_thforce.hex" sbt run
 
 if [ ! -f "generated/filelist.f" ]; then
     echo "Error: No 'generated/filelist.f' found after build"
@@ -26,14 +28,25 @@ verilator --cc --exe --build -f filelist.f ../sim.cpp --top-module Core
 echo "--------- S I M U L A T I O N (Without Thforce) ---------"
 obj_dir/VCore
 
+# With Thforce
+
 cd ..
 
-cat examples/with_thforce.asm | sbt run
+riscv32-none-elf-as -march=rv32i -mabi=ilp32 examples/with_thforce.asm -o generated/with_thforce.o
+riscv32-none-elf-ld -T link.ld generated/with_thforce.o -o generated/with_thforce.elf
+riscv32-none-elf-objcopy -O verilog --verilog-data-width=4 generated/with_thforce.elf generated/with_thforce.hex
+
+PROG="generated/with_thforce.hex" sbt run
 
 if [ ! -f "generated/filelist.f" ]; then
-    echo "Error: No 'generated/filelist.f' found after build"
-    exit 1
+   echo "Error: No 'generated/filelist.f' found after build"
+   exit 1
 fi
 
 cd generated
 
+echo "--------- V E R I L A T O R (With Thforce) ---------"
+verilator --cc --exe --build -f filelist.f ../sim.cpp --top-module Core
+
+echo "--------- S I M U L A T I O N (With Thforce) ---------"
+obj_dir/VCore
