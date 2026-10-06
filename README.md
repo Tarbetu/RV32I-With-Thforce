@@ -42,21 +42,47 @@ Where:
 sbt run
 ```
 
-This will produce SystemVerilog files under the [generated](/generated) directory.
+This will produce SystemVerilog files under the [generated](/generated) directory. However, it will not be useful since it will not do anything interesting in that state. You have to pass a program to the ROM. You can use this:
 
-## Test
-
-```sh
-sbt test
+``` sh
+PROG="generated/with_thforce.hex" sbt run
 ```
+
+It's worth to mention that the hardware does not allow loading new programs after the building process by design. The instructions has its own seperate memory, and the PC will only point that memory. If you want to build your own program, you can directly compile your program to RV32I assembly.
+
+These are the steps to prepare your program to the ROM.
+
+``` sh
+# Assemblying your program
+riscv32-none-elf-as -march=rv32i -mabi=ilp32 $PATH_TO_YOUR_ASM -o output.o
+# Linking with the linker provided in this repository
+riscv32-none-elf-ld -T link.ld output.o -o output.elf
+# Converting your object to hex file
+riscv32-none-elf-objcopy -O verilog --verilog-data-width=4 output.elf program.hex
+# Then pass the location of your hex file
+PROG="program.hex" sbt run
+```
+
+## Simulation and Comparison
+
+Here is the quick results:
+``` sh
+--------- Without Thforce ---------
+Halted after 74 cycles.
+---------  With  Thforce  ---------
+Halted after 8 cycles.
+```
+
+You can verify the the results with `./verilator_compare` script which runs the simulation. If you're interested with the simulation objects like the hex files of the example programs, verilator output and VCD file, you can give the `--keep` flag.
 
 ## Dependencies
 
+You will need these tools:
 - Scala 2.13
 - sbt
-- Metals (for development)
-- Yosys (optional, for synthesis)
-- Verilator (optional, for simulation)
+- Verilator (For simulation)
+- Surfer or Gtkwave (As a Waveform Viewer)
+- RISC-V Toolchain (If you're interest to do the cycle comparison)
 
 A `shell.nix` file is included for Nix users. If you use `direnv`:
 
@@ -69,3 +95,5 @@ Otherwise:
 ```sh
 nix-shell
 ```
+
+This shell includes Scala, Metals (Lsp for Scala), Verilator, Surfer and the RiscV Toolchain.

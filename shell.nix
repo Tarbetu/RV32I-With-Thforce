@@ -10,9 +10,7 @@ mkShell {
     sbt
     scala_2_13
     metals
-    yosys
     verilator
-    xxd
     surfer
     riscv-toolchain.buildPackages.binutils
   ];
