@@ -29,10 +29,10 @@ Where:
 ## Behavior
 
 - THFORCE checks the status of the thunk with the given `id`.
-- If it is in the **Idle** state, it checks the function pointer at the address in `rd`. If it matches `rs1`, the thunk is already forced and the value is ready — THFORCE reads the result and writes it to `rd`.
+- If it is in the **Idle** state, it checks the function pointer at the address in `rd`. If it matches `rs1`, the thunk is already forced, so THFORCE simply advances to the next instruction (the cached value remains at `rd + 4` in memory).
 - If it is not yet forced, THFORCE moves into the **Visiting** state. It saves the current register context to the thunk's dedicated memory, writes the return address to `x1`, and jumps to the function's address. Arguments are passed via `a0–a7` per the standard calling convention.
 - If the thunk is currently being evaluated (e.g. due to a recursive call), it is in the **Locked** state and THFORCE does nothing.
-- After the function returns, THFORCE enters the **Memorize** state. It overwrites the `fn_ptr` field at the address in `rd` with the function pointer as a sentinel value (indicating the thunk is now forced), writes the return value from `a0` to `rd + 4`, restores the saved register context, and transitions back to **Idle**.
+- After the function returns, THFORCE enters the **Memorize** state. It overwrites the `fn_ptr` field at the address in `rd` with the function pointer as a sentinel value (indicating the thunk is now forced), writes the return value from `a0` to `rd + 4` and into the `rd` register, restores the saved register context, and transitions back to **Idle**.
 
 # How to Run
 
@@ -42,13 +42,13 @@ Where:
 sbt run
 ```
 
-This will produce SystemVerilog files under the [generated](/generated) directory. However, it will not be useful since it will not do anything interesting in that state. You have to pass a program to the ROM. You can use this:
+This will produce SystemVerilog files under the `generated/` directory. However, it will not be useful since it will not do anything interesting in that state. You have to pass a program to the ROM. You can use this:
 
 ``` sh
 PROG="generated/with_thforce.hex" sbt run
 ```
 
-It's worth to mention that the hardware does not allow loading new programs after the building process by design. The instructions has its own seperate memory, and the PC will only point that memory. If you want to build your own program, you can directly compile your program to RV32I assembly.
+It's worth mentioning that the hardware does not allow loading new programs after the build process, by design. Each instruction has its own separate memory, and the PC only ever points into that memory. If you want to build your own program, you can compile it directly to RV32I assembly.
 
 These are the steps to prepare your program to the ROM.
 
@@ -73,7 +73,7 @@ Halted after 74 cycles.
 Halted after 8 cycles.
 ```
 
-You can verify the the results with `./verilator_compare` script which runs the simulation. If you're interested with the simulation objects like the hex files of the example programs, verilator output and VCD file, you can give the `--keep` flag.
+You can verify the results with the `./verilator_compare` script, which runs the simulation. If you're interested in the simulation artifacts, such as the hex files of the example programs, the Verilator output, and the VCD file, pass the `--keep` flag.
 
 ## Dependencies
 
@@ -82,7 +82,7 @@ You will need these tools:
 - sbt
 - Verilator (For simulation)
 - Surfer or Gtkwave (As a Waveform Viewer)
-- RISC-V Toolchain (If you're interest to do the cycle comparison)
+- RISC-V Toolchain (if you're interested in doing the cycle comparison)
 
 A `shell.nix` file is included for Nix users. If you use `direnv`:
 

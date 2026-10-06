@@ -2,7 +2,7 @@
 
 if [ ! -f "build.sbt" ]; then
     echo "Error: No 'build.sbt' detected"
-    exit1
+    exit 1
 fi
 
 if [ ! -f "sim.cpp" ]; then
