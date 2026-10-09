@@ -26,6 +26,8 @@ verilator --cc --exe --build --trace --quiet -f filelist.f ../sim.cpp --top-modu
 
 echo "--------- Without Thforce ---------"
 obj_dir/VCore
+mv dump.vcd dump_without_thforce.vcd
+mv obj_dir/VCore obj_dir/VCore_without_thforce
 
 # With Thforce
 
@@ -48,6 +50,8 @@ verilator --cc --exe --build --trace --quiet -f filelist.f ../sim.cpp --top-modu
 
 echo "---------  With  Thforce  ---------"
 obj_dir/VCore
+mv dump.vcd dump_with_thforce.vcd
+mv obj_dir/VCore obj_dir/VCore_with_thforce
 
 # Cleanup the mess
 if [ ! "$1" = "--keep" ]; then

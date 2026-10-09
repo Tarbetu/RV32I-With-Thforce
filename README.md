@@ -75,6 +75,12 @@ Halted after 8 cycles.
 
 You can verify the results with the `./verilator_compare` script, which runs the simulation. If you're interested in the simulation artifacts, such as the hex files of the example programs, the Verilator output, and the VCD file, pass the `--keep` flag.
 
+If you pass the `--keep` flag, these files will be preserved which located at `generated` folder:
+- **\*.hex** files for providing the output of example programs which you can use
+- The binaries compiled by Verilog located at `obj_dir`
+- The **\*.vcd** files
+- **\*.elf** and **\*.o** for further debug
+
 ## Dependencies
 
 You will need these tools:
