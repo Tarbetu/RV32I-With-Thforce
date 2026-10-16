@@ -27,19 +27,29 @@ class Core(program: Seq[UInt]) extends Module {
   regFile.io.rs1Addr := 0.U
   regFile.io.rs2Addr := 0.U
 
-  regFile.io.thunkAddr := 0.U
-  regFile.io.thunkWrite := false.B
   regFile.io.returnAddress := 0.U
   regFile.io.returnAddressWrite := false.B
-  regFile.io.thunkNewStatus := ThunkStatus.Idle
-  regFile.io.thunkSnapshot := false.B
-  regFile.io.thunkRestore := false.B
 
   alu.io.op := AluOp.None
   alu.io.lhs := 0.U
   alu.io.rhs := 0.U
 
   regFile.io.rdData := 0.U
+
+  // Caller-saved registers (per the RISC-V ABI) saved on the stack by THFORCE.
+  // Register numbers; order must match the manual example's push/pop order.
+  val savedRegisters = Seq(1, 5, 6, 7, 28, 29, 30, 31, 10, 11, 12, 13, 14, 15, 16, 17)
+  val frameBytes = 64.U(32.W)
+
+  // A low bit that is always zero in real code addresses (they are 4-byte aligned).
+  // It is used to tag the return address written to x1, so that "our" return is
+  // distinguishable from a caller's ordinary x1 == pc.
+  val lowBitMask = ~0.U(32.W) << 1
+
+  val thunkContext = Wire(Vec(31, UInt(32.W)))
+  thunkContext := regFile.io.contextOut
+  regFile.io.contextIn := thunkContext
+  regFile.io.contextWrite := false.B
 
   // An instruction is 32-bit for simplicity, but an usual RiscV CPU is byte-addressable
   // There can be many programs that can treat the program as byte-addressable
@@ -86,8 +96,14 @@ class Core(program: Seq[UInt]) extends Module {
     regFile.io.rdWrite := true.B
 
     regFile.io.rs1Addr := decoder.io.rs1
-    io.debug := regFile.io.rs1Data + (decoder.io.immediate.asSInt.pad(32).asUInt & ~1.U)
-    pc := regFile.io.rs1Data + (decoder.io.immediate.asSInt.pad(32).asUInt & ~1.U)
+
+    // JALR ignores the target's least-significant bit. Masking it here also
+    // strips the THFORCE return-address tag so the pc stays clean.
+    val jumpTarget = (regFile.io.rs1Data & lowBitMask) +
+      (decoder.io.immediate.asSInt.pad(32).asUInt & lowBitMask)
+
+    io.debug := jumpTarget
+    pc := jumpTarget
   }.elsewhen(decoder.io.branch) {
     regFile.io.rs1Addr := decoder.io.rs1
     regFile.io.rs2Addr := decoder.io.rs2
@@ -241,71 +257,82 @@ class Core(program: Seq[UInt]) extends Module {
   }.elsewhen(decoder.io.envCall || decoder.io.envBreak) {
     io.halt := true.B
   }.elsewhen(decoder.io.thforce) {
-    regFile.io.thunkAddr := decoder.io.thunkAddr
-    val thunkStatus = regFile.io.thunkCurrentStatus
-
     regFile.io.rs1Addr := decoder.io.rs1
     val fn_ptr = regFile.io.rs1Data
 
     regFile.io.rs2Addr := decoder.io.rd
     val destinationAddr = regFile.io.rs2Data
-
-    import ThunkStatus._
-
     val destinationWord = destinationAddr >> 2
 
-    switch(thunkStatus) {
-      is(Idle) {
-        val destinationVec = dataMem(destinationWord)
-        val destinationData =
-          Cat(destinationVec(3), destinationVec(2), destinationVec(1), destinationVec(0))
+    // The return phase is signaled by the tagged return address written to x1
+    // on entry. Caller return addresses are 4-byte aligned, so the tag bit
+    // never causes a false positive.
+    val returning = regFile.io.contextOut(0) === (pc | 1.U)
 
-        when(destinationData =/= fn_ptr) {
-          regFile.io.thunkNewStatus := Visiting
-          regFile.io.thunkWrite := true.B
-        }.otherwise {
-          pc := pc + 4.U
-        }
+    when(returning) {
+      val ptrLanes = VecInit(
+        fn_ptr(7, 0),
+        fn_ptr(15, 8),
+        fn_ptr(23, 16),
+        fn_ptr(31, 24)
+      )
+      val valueLanes = VecInit(
+        regFile.io.returnedValue(7, 0),
+        regFile.io.returnedValue(15, 8),
+        regFile.io.returnedValue(23, 16),
+        regFile.io.returnedValue(31, 24)
+      )
+
+      dataMem.write(destinationWord, ptrLanes)
+      dataMem.write(destinationWord + 1.U, valueLanes)
+
+      val base = regFile.io.contextOut(1) // x2 - sp
+
+      for ((reg, i) <- savedRegisters.zipWithIndex) {
+        val vec = dataMem((base >> 2) + i.U)
+        thunkContext(reg - 1) := Cat(vec(3), vec(2), vec(1), vec(0))
       }
-      is(Visiting) {
-        regFile.io.returnAddress := pc
-        regFile.io.returnAddressWrite := true.B
+      thunkContext(1) := base + frameBytes // x2
+      regFile.io.contextWrite := true.B
 
-        regFile.io.thunkSnapshot := true.B
-        regFile.io.thunkNewStatus := Memorize
-        regFile.io.thunkWrite := true.B
+      regFile.io.rdAddr  := decoder.io.rd
+      regFile.io.rdData  := regFile.io.returnedValue
+      regFile.io.rdWrite := true.B
 
-        pc := fn_ptr
-      }
-      is(Memorize) {
-        val ptrLanes = VecInit(
-          fn_ptr(7, 0),
-          fn_ptr(15, 8),
-          fn_ptr(23, 16),
-          fn_ptr(31, 24)
-        )
-        val valueLanes = VecInit(
-          regFile.io.returnedValue(7, 0),
-          regFile.io.returnedValue(15, 8),
-          regFile.io.returnedValue(23, 16),
-          regFile.io.returnedValue(31, 24)
-        )
+      pc := pc + 4.U
+    }.otherwise {
+      val destinationVec = dataMem(destinationWord)
+      val destinationData =
+        Cat(destinationVec(3), destinationVec(2), destinationVec(1), destinationVec(0))
 
-        dataMem.write(destinationWord, ptrLanes)
-        dataMem.write(destinationWord + 1.U, valueLanes)
-
-        regFile.io.thunkRestore := true.B
-
-        regFile.io.thunkNewStatus := Idle
-        regFile.io.thunkWrite := true.B
-
-        val resultVec = dataMem((destinationAddr + 4.U) >> 2)
+      when(destinationData === fn_ptr) {
+        val resultVec = dataMem(destinationWord + 1.U)
 
         regFile.io.rdAddr  := decoder.io.rd
         regFile.io.rdData  := Cat(resultVec(3), resultVec(2), resultVec(1), resultVec(0))
         regFile.io.rdWrite := true.B
 
         pc := pc + 4.U
+      }.otherwise {
+        val oldSp = regFile.io.contextOut(1) // x2 - sp
+        val newSp = oldSp - frameBytes
+
+        for ((reg, i) <- savedRegisters.zipWithIndex) {
+          val value = regFile.io.contextOut(reg - 1)
+          dataMem.write(
+            (newSp >> 2) + i.U,
+            VecInit(value(7, 0), value(15, 8), value(23, 16), value(31, 24))
+          )
+        }
+
+        regFile.io.returnAddress := pc | 1.U
+        regFile.io.returnAddressWrite := true.B
+
+        regFile.io.rdAddr  := 2.U
+        regFile.io.rdData  := newSp
+        regFile.io.rdWrite := true.B
+
+        pc := fn_ptr
       }
     }
   }

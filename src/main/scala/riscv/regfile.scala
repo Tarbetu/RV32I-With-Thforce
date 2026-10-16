@@ -18,17 +18,12 @@ class RegFile extends Module {
     val rdData  = Input(UInt(32.W))
     val rdWrite = Input(Bool())
 
-    val thunkAddr          = Input(UInt(4.W))
-    val thunkNewStatus     = Input(ThunkStatus())
-    val thunkWrite         = Input(Bool())
-    val thunkCurrentStatus = Output(ThunkStatus())
-    val thunkSnapshot      = Input(Bool())
-    val thunkRestore       = Input(Bool())
+    val contextOut   = Output(Vec(31, UInt(32.W)))
+    val contextIn    = Input(Vec(31, UInt(32.W)))
+    val contextWrite = Input(Bool())
   })
 
-  val registers      = Mem(31, UInt(32.W))
-  val thunkMem       = Mem(16, ThunkStatus())
-  val thunkContextes = Mem(16 * 31, UInt(32.W))
+  val registers = Mem(31, UInt(32.W))
 
   io.rs1Data := Mux(
     io.rs1Addr === 0.U,
@@ -44,30 +39,22 @@ class RegFile extends Module {
 
   io.returnedValue := registers.read(9.U) // a0 - x10
 
+  for (i <- 0 until 31) {
+    io.contextOut(i) := registers.read(i.U)
+  }
+
   when(io.rdWrite && io.rdAddr =/= 0.U) {
     registers.write(io.rdAddr - 1.U, io.rdData)
   }
 
-  io.thunkCurrentStatus := thunkMem(io.thunkAddr)
-
-  when(io.thunkWrite) {
-    thunkMem.write(io.thunkAddr, io.thunkNewStatus)
-  }
-
-  when (io.returnAddressWrite) {
+  when(io.returnAddressWrite) {
     registers.write(0.U, io.returnAddress)
   }
 
-  when (io.thunkSnapshot) {
+  when(io.contextWrite) {
     for (i <- 0 until 31) {
-      thunkContextes.write(io.thunkAddr * 31.U + i.U, registers.read(i.U))
-    }
-  }
-
-  when (io.thunkRestore) {
-    for (i <- 0 until 31) {
-      when (!(io.rdWrite && io.rdAddr =/= 0.U && (io.rdAddr - 1.U) === i.U)) {
-        registers.write(i.U, thunkContextes(io.thunkAddr * 31.U + i.U))
+      when(!(io.rdWrite && io.rdAddr =/= 0.U && (io.rdAddr - 1.U) === i.U)) {
+        registers.write(i.U, io.contextIn(i))
       }
     }
   }

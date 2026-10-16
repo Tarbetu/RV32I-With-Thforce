@@ -5,6 +5,9 @@
 # If it has, the memorized result is returned.
 # If not, the context is saved, the function is called, and the result is stored in rd.
 
+# The stack is used to save the caller-saved context manually.
+LI sp, 4000
+
 # t5 holding the pointer of the result location (rd, which is {fn_ptr, value_ptr})
 LI t5, 1000
 # t1 holding the pointer of the value (rs1)

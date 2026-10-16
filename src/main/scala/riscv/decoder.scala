@@ -20,7 +20,6 @@ class Decoder extends Module {
     val memWrite    = Output(Bool())
     val rdWrite     = Output(Bool())
     val thforce     = Output(Bool())
-    val thunkAddr   = Output(UInt(4.W))
 
     val aluOp           = Output(AluOp())
     val branch          = Output(Bool())
@@ -61,7 +60,6 @@ class Decoder extends Module {
   io.envBreak        := false.B
   io.fence           := false.B
   io.thforce         := false.B
-  io.thunkAddr       := 0.U
 
   io.loadSize   := LoadSize.Byte
   io.storeSize  := StoreSize.Byte
@@ -71,8 +69,6 @@ class Decoder extends Module {
 
   val funct3 = io.instruction(14, 12)
   val funct7 = io.immediate(11, 5)
-
-  io.thunkAddr := io.immediate(3, 0) // Modulo 16
 
   val opcode = {
     val instruction = io.instruction(6, 0)

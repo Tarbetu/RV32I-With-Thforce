@@ -33,9 +33,3 @@ object StoreSize extends ChiselEnum {
 object BranchType extends ChiselEnum {
   val Equal, NotEqual, LessThan, GreaterEqual, LessThanUnsigned, GreaterEqualUnsigned = Value
 }
-
-object ThunkStatus extends ChiselEnum {
-  val Idle     = Value(0.U)
-  val Visiting = Value(1.U)
-  val Memorize = Value(2.U)
-}
