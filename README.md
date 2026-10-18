@@ -27,12 +27,11 @@ Where:
 
 ## Behavior
 
-THFORCE has no internal state machine. The phase (entering vs. returning) is derived from the program counter itself: on entry it writes a tagged return address (`pc | 1`) into `x1`, and when the same instruction executes again it recognizes the return by matching `x1` against that tagged value. Because normal return addresses are 4-byte aligned, the tag bit can never collide with a caller's own `x1`.
+THFORCE is an simple instruction and does not base on something like a state machine. The phase (entering vs. returning) is derived from the program counter itself: on entry it writes a tagged return address (`pc | 1`) into `x1`, and when the same instruction executes again it recognizes the return by matching `x1` against that tagged value. Because normal return addresses are 4-byte aligned, the tag bit can never collide with a caller's own `x1`.
 
 - On entry, THFORCE checks the function pointer stored at the address in `rd`. If it already equals `rs1`, the thunk is already forced, so the cached value at `rd + 4` is loaded into `rd` and THFORCE advances to the next instruction.
 - If it is not yet forced, THFORCE pushes the caller-saved register context (`ra`, `t0–t6`, `a0–a7`) onto the stack using `x2` as the stack pointer, writes the tagged return address to `x1`, and jumps to the function's address. Arguments are passed via `a0–a7` per the standard calling convention.
 - After the function returns, THFORCE recognizes the return through the tagged `x1`. It overwrites the `fn_ptr` field at the address in `rd` with the function pointer as a sentinel value (indicating the thunk is now forced), writes the return value from `a0` to `rd + 4` and into the `rd` register, restores the saved register context from the stack, and advances to the next instruction.
-- Recursive forcing of a thunk that is still being evaluated is not detected by the hardware; that is left to the program.
 
 # How to Run
 

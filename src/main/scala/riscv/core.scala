@@ -36,14 +36,14 @@ class Core(program: Seq[UInt]) extends Module {
 
   regFile.io.rdData := 0.U
 
-  // Caller-saved registers (per the RISC-V ABI) saved on the stack by THFORCE.
-  // Register numbers; order must match the manual example's push/pop order.
-  val savedRegisters = Seq(1, 5, 6, 7, 28, 29, 30, 31, 10, 11, 12, 13, 14, 15, 16, 17)
+  // List of caller-saved registers (per the RISC-V ABI)
+  // Used for THFORCE.
+  val savedRegisters = Seq(1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31)
   val frameBytes = 64.U(32.W)
 
-  // A low bit that is always zero in real code addresses (they are 4-byte aligned).
-  // It is used to tag the return address written to x1, so that "our" return is
-  // distinguishable from a caller's ordinary x1 == pc.
+  // A low bit that is always zero in real code addresses since they are 4-byte aligned.
+  // It is used to tag the return address written to x1
+  // This is the way of how THFORCE tracks the state of thunk
   val lowBitMask = ~0.U(32.W) << 1
 
   val thunkContext = Wire(Vec(31, UInt(32.W)))
@@ -51,9 +51,7 @@ class Core(program: Seq[UInt]) extends Module {
   regFile.io.contextIn := thunkContext
   regFile.io.contextWrite := false.B
 
-  // An instruction is 32-bit for simplicity, but an usual RiscV CPU is byte-addressable
-  // There can be many programs that can treat the program as byte-addressable
-  // So, we're just dividing the pc with 4.
+  // Check the low-bit Mask
   val instruction = instructionMem(pc >> 2)
 
   decoder.io.instruction := instruction
@@ -264,12 +262,9 @@ class Core(program: Seq[UInt]) extends Module {
     val destinationAddr = regFile.io.rs2Data
     val destinationWord = destinationAddr >> 2
 
-    // The return phase is signaled by the tagged return address written to x1
-    // on entry. Caller return addresses are 4-byte aligned, so the tag bit
-    // never causes a false positive.
-    val returning = regFile.io.contextOut(0) === (pc | 1.U)
+    val isVisiting = regFile.io.contextOut(0) === (pc | 1.U)
 
-    when(returning) {
+    when(isVisiting) {
       val ptrLanes = VecInit(
         fn_ptr(7, 0),
         fn_ptr(15, 8),
@@ -306,6 +301,7 @@ class Core(program: Seq[UInt]) extends Module {
         Cat(destinationVec(3), destinationVec(2), destinationVec(1), destinationVec(0))
 
       when(destinationData === fn_ptr) {
+        // This branch trigerred when the thunk is already evaluated
         val resultVec = dataMem(destinationWord + 1.U)
 
         regFile.io.rdAddr  := decoder.io.rd
@@ -314,9 +310,11 @@ class Core(program: Seq[UInt]) extends Module {
 
         pc := pc + 4.U
       }.otherwise {
+        // This branch trigerred when the thunk is not evaluated yet
         val oldSp = regFile.io.contextOut(1) // x2 - sp
         val newSp = oldSp - frameBytes
 
+        // Copy the caller-saved registers to the stack frame
         for ((reg, i) <- savedRegisters.zipWithIndex) {
           val value = regFile.io.contextOut(reg - 1)
           dataMem.write(
@@ -325,6 +323,7 @@ class Core(program: Seq[UInt]) extends Module {
           )
         }
 
+        // Spill the return address to x1 and set the return address write flag
         regFile.io.returnAddress := pc | 1.U
         regFile.io.returnAddressWrite := true.B
 
