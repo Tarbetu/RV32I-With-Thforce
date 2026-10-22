@@ -346,3 +346,4 @@ hs_err_pid*
 generated/
 
 obj_dir/
+core.json

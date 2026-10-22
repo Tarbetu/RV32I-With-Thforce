@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
-class Decoder extends Module {
+class Decoder(withThforce: Boolean = true) extends Module {
   val io = IO(new Bundle {
     val instruction = Input(UInt(32.W))
 
@@ -19,7 +19,7 @@ class Decoder extends Module {
     val memRead     = Output(Bool())
     val memWrite    = Output(Bool())
     val rdWrite     = Output(Bool())
-    val thforce     = Output(Bool())
+    val thforce     = if (withThforce) Some(Output(Bool())) else None
 
     val aluOp           = Output(AluOp())
     val branch          = Output(Bool())
@@ -59,7 +59,9 @@ class Decoder extends Module {
   io.envCall         := false.B
   io.envBreak        := false.B
   io.fence           := false.B
-  io.thforce         := false.B
+  if (withThforce) {
+    io.thforce.get := false.B
+  }
 
   io.loadSize   := LoadSize.Byte
   io.storeSize  := StoreSize.Byte
@@ -202,8 +204,13 @@ class Decoder extends Module {
     is(fence) {
       io.fence := true.B
     }
-    is(thforce) {
-      io.thforce := true.B
+  }
+
+  if (withThforce) {
+    switch(opcode) {
+      is(thforce) {
+        io.thforce.get := true.B
+      }
     }
   }
 }

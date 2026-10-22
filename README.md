@@ -47,6 +47,16 @@ This will produce SystemVerilog files under the `generated/` directory. However,
 PROG="generated/with_thforce.hex" sbt run
 ```
 
+### Disabling THFORCE
+
+THFORCE support is enabled by default. To generate the core without the THFORCE instruction and its associated logic, set `THFORCE` to `0` (or `false`):
+
+``` sh
+THFORCE=0 PROG="generated/without_thforce.hex" sbt run
+```
+
+This removes the THFORCE decoder output, the register-file context ports, and the THFORCE execution path from the generated SystemVerilog. Leaving `THFORCE` unset, or setting it to any other value, keeps THFORCE enabled.
+
 It's worth mentioning that the hardware does not allow loading new programs after the build process, by design. Each instruction has its own separate memory, and the PC only ever points into that memory. If you want to build your own program, you can compile it directly to RV32I assembly.
 
 These are the steps to prepare your program to the ROM.

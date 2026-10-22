@@ -5,6 +5,11 @@ import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
 object Main extends App {
+  val withThforce: Boolean = sys.env.get("THFORCE") match {
+    case Some(value) => !Set("0", "false").contains(value.trim.toLowerCase)
+    case None        => true
+  }
+
   val program: Seq[UInt] = sys.env.get("PROG") match {
     case Some(prog) =>
       scala.io.Source.fromFile(prog)
@@ -23,7 +28,7 @@ object Main extends App {
   }
 
   ChiselStage.emitSystemVerilogFile(
-    new Core(program),
+    new Core(program, withThforce),
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info", "-default-layer-specialization=enable"),
     args = Array("--target-dir", "generated")
   )
