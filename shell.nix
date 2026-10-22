@@ -13,5 +13,10 @@ mkShell {
     verilator
     surfer
     riscv-toolchain.buildPackages.binutils
+    oss-cad-suite
   ];
+
+  shellHook = ''
+    export PATH=${oss-cad-suite}/bin:$PATH
+  '';
 }

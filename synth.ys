@@ -1,0 +1,13 @@
+plugin -i slang
+read_slang -DSYNTHESIS generated/Core.sv\
+                       generated/Alu.sv\
+                       generated/Decoder.sv\
+                       generated/registers_31x32.sv\
+                       generated/dataMem_1024x32.sv\
+                       generated/RegFile.sv
+hierarchy -top Core -check
+blackbox t:instructionMem
+synth_ecp5 -abc9
+stat -hierarchy
+write_json core.json
+shell
