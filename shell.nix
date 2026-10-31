@@ -7,11 +7,36 @@ let
 
   oss-cad-suite = stdenv.mkDerivation rec {
     pname = "oss-cad-suite";
-    version = "20261021";
+    version = "2026-10-28";
+    platform =
+      let
+        system = stdenv.buildPlatform.system;
+      in
+        if system == "x86_64-linux" then
+          "linux-x64"
+        else if system == "aarch64-linux" then
+          "linux-arm64"
+        else if system == "aarch64-darwin" then
+          "darwin-arm64"
+        else if system == "x86_64-windows" then
+          "windows-x64"
+        else
+          abort "Unknown platform";
 
     src = fetchurl {
-      url = "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${version}/oss-cad-suite-linux-x64-${version}.tgz";
-      hash = "sha256-3enxcA3s4ZWpipsVhFpPQEOyqrHaz5vkmLutDDvh8kc=";
+      url =
+        "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${version}/oss-cad-suite-${platform}-${builtins.replaceStrings ["-"] [""] version}.tgz";
+      hash =
+        if platform == "linux-x64" then
+          "sha256-XtBebhl8scmNB5d4pWD5TuBPe8X6CfIjm/MPAyZy5/I="
+        else if platform == "linux-arm64" then
+          "sha256-L9WFmoCkL/rAAyKvd9Z3KuhWOe5vjMzPgFxybl0llm8="
+        else if platform == "darwin-arm64" then
+          "sha256-HVc7wfvqWRAljUlOAI4wyLUDjl70GE2ryPD4cS5RwZY="
+        else if platform == "windows-x64" then
+          "sha256-65evnl0LGV5XDGp+49KcAFvMYOND1Iy3E+9BTko552Y="
+        else
+          abort;
     };
 
     buildInputs = [

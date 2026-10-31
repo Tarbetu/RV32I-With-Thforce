@@ -9,12 +9,11 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
     val halt = Output(Bool())
   })
 
-  val instructionMem = VecInit(program)
-
-  val dataMem = SyncReadMem(1024, Vec(4, UInt(8.W)))
+  val dataMem = Mem(1024, Vec(4, UInt(8.W)))
   val decoder = Module(new Decoder(withThforce))
   val regFile = Module(new RegFile(withThforce))
   val alu = Module(new Alu)
+  val instructionMem = Module(new InstructionMem(program))
 
   val pc = RegInit(0.U(32.W))
 
@@ -28,6 +27,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
   regFile.io.rs2Addr := 0.U
 
   if (withThforce) {
+    regFile.io.deallocSp := false.B
     regFile.io.returnAddress.get := 0.U
     regFile.io.returnAddressWrite.get := false.B
   }
@@ -38,25 +38,14 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
 
   regFile.io.rdData := 0.U
 
-  // List of caller-saved registers (per the RISC-V ABI)
-  // Used for THFORCE.
-  val savedRegisters = Seq(1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31)
-  val frameBytes = 64.U(32.W)
-
   // A low bit that is always zero in real code addresses since they are 4-byte aligned.
   // It is used to tag the return address written to x1
   // This is the way of how THFORCE tracks the state of thunk
   val lowBitMask = ~0.U(32.W) << 1
 
-  val thunkContext = if (withThforce) Some(Wire(Vec(31, UInt(32.W)))) else None
-  if (withThforce) {
-    thunkContext.get := regFile.io.contextOut.get
-    regFile.io.contextIn.get := thunkContext.get
-    regFile.io.contextWrite.get := false.B
-  }
-
   // Check the low-bit Mask
-  val instruction = instructionMem(pc >> 2)
+  instructionMem.io.addr := pc >> 2
+  val instruction = instructionMem.io.data
 
   decoder.io.instruction := instruction
 
@@ -177,9 +166,10 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
 
     regFile.io.rdAddr := decoder.io.rd
 
-    val dataAddr = regFile.io.rs1Data + decoder.io.immediate.asSInt.pad(32).asUInt
+    val dataAddr =
+      regFile.io.rs1Data + decoder.io.immediate.asSInt.pad(32).asUInt
     val wordAddr = dataAddr >> 2
-    val byteOff  = dataAddr(1, 0)
+    val byteOff = dataAddr(1, 0)
 
     val wordVec = dataMem(wordAddr)
     val word = Cat(wordVec(3), wordVec(2), wordVec(1), wordVec(0))
@@ -214,12 +204,13 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
     regFile.io.rs1Addr := decoder.io.rs1
     regFile.io.rs2Addr := decoder.io.rs2
 
-    val dataAddr = regFile.io.rs1Data + decoder.io.immediate.asSInt.pad(32).asUInt
+    val dataAddr =
+      regFile.io.rs1Data + decoder.io.immediate.asSInt.pad(32).asUInt
     val wordAddr = dataAddr >> 2
-    val byteOff  = dataAddr(1, 0)
+    val byteOff = dataAddr(1, 0)
 
-    val rs2     = regFile.io.rs2Data
-    val oldVec  = dataMem(wordAddr)
+    val rs2 = regFile.io.rs2Data
+    val oldVec = dataMem(wordAddr)
     val oldWord = Cat(oldVec(3), oldVec(2), oldVec(1), oldVec(0))
 
     val wordMask = VecInit(true.B, true.B, true.B, true.B)
@@ -228,14 +219,15 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       VecInit(false.B, false.B, true.B, true.B),
       VecInit(true.B, true.B, false.B, false.B)
     )
-    val byteMask = MuxLookup(byteOff, VecInit(false.B, false.B, false.B, false.B))(
-      Seq(
-        0.U -> VecInit(true.B, false.B, false.B, false.B),
-        1.U -> VecInit(false.B, true.B, false.B, false.B),
-        2.U -> VecInit(false.B, false.B, true.B, false.B),
-        3.U -> VecInit(false.B, false.B, false.B, true.B)
+    val byteMask =
+      MuxLookup(byteOff, VecInit(false.B, false.B, false.B, false.B))(
+        Seq(
+          0.U -> VecInit(true.B, false.B, false.B, false.B),
+          1.U -> VecInit(false.B, true.B, false.B, false.B),
+          2.U -> VecInit(false.B, false.B, true.B, false.B),
+          3.U -> VecInit(false.B, false.B, false.B, true.B)
+        )
       )
-    )
 
     import StoreSize._
     val mask = MuxLookup(decoder.io.storeSize, wordMask)(
@@ -268,10 +260,17 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       regFile.io.rs2Addr := decoder.io.rd
       val destinationAddr = regFile.io.rs2Data
       val destinationWord = destinationAddr >> 2
+      val bufferMode = (regFile.io.bufferAddrOut.get === (pc >> 1))
+      val isReturned = regFile.io.contextOut.get(0) === (pc | 1.U)
 
-      val isVisiting = regFile.io.contextOut.get(0) === (pc | 1.U)
+      when (bufferMode) {
+        // This branch is triggered when the thunk is in return phrase and buffer mode
+        regFile.io.bufferConsume.get := true.B
+        regFile.io.bufferAddrIn := 0.U
 
-      when(isVisiting) {
+        pc := pc + 4
+      }.elsewhen(isReturned) {
+        // This branch is triggered when the thunk is in return phrase and stack memory mode
         val ptrLanes = VecInit(
           fn_ptr(7, 0),
           fn_ptr(15, 8),
@@ -288,57 +287,94 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
         dataMem.write(destinationWord, ptrLanes)
         dataMem.write(destinationWord + 1.U, valueLanes)
 
-        val base = regFile.io.contextOut.get(1) // x2 - sp
+        regFile.io.rs1Addr := 2
+        val base = regFile.io.rs1Data // x2 - sp
 
-        for ((reg, i) <- savedRegisters.zipWithIndex) {
-          val vec = dataMem((base >> 2) + i.U)
-          thunkContext.get(reg - 1) := Cat(vec(3), vec(2), vec(1), vec(0))
+        val counter = RegInit(0)
+
+        when(counter < Thforce.savedRegisters.length.U) {
+          val reg = Thforce.savedRegisters(counter)
+          val value = dataMem.read((base >> 2) + counter)
+
+          regFile.io.rdAddr := reg
+          regFile.io.rdData := Cat(value(3), value(2), value(1), value(0))
+          regFile.rdWrite   := true.B
+
+          counter := counter + 1
+          pc := pc
+        }.otherwise {
+          regFile.io.rdAddr := decoder.io.rd
+          regFile.io.rdData := regFile.io.returnedValue.get
+          regFile.io.rdWrite := true.B
+          regFile.io.deallocSp := true.B
+
+          counter := 0
+          pc := pc + 4.U
         }
-        thunkContext.get(1) := base + frameBytes // x2
-        regFile.io.contextWrite.get := true.B
-
-        regFile.io.rdAddr  := decoder.io.rd
-        regFile.io.rdData  := regFile.io.returnedValue.get
-        regFile.io.rdWrite := true.B
-
-        pc := pc + 4.U
       }.otherwise {
         val destinationVec = dataMem(destinationWord)
         val destinationData =
-          Cat(destinationVec(3), destinationVec(2), destinationVec(1), destinationVec(0))
+          Cat(
+            destinationVec(3),
+            destinationVec(2),
+            destinationVec(1),
+            destinationVec(0)
+          )
 
         when(destinationData === fn_ptr) {
           // This branch trigerred when the thunk is already evaluated
           val resultVec = dataMem(destinationWord + 1.U)
 
-          regFile.io.rdAddr  := decoder.io.rd
-          regFile.io.rdData  := Cat(resultVec(3), resultVec(2), resultVec(1), resultVec(0))
+          regFile.io.rdAddr := decoder.io.rd
+          regFile.io.rdData := Cat(
+            resultVec(3),
+            resultVec(2),
+            resultVec(1),
+            resultVec(0)
+          )
           regFile.io.rdWrite := true.B
 
           pc := pc + 4.U
-        }.otherwise {
-          // This branch trigerred when the thunk is not evaluated yet
-          val oldSp = regFile.io.contextOut.get(1) // x2 - sp
-          val newSp = oldSp - frameBytes
-
-          // Copy the caller-saved registers to the stack frame
-          for ((reg, i) <- savedRegisters.zipWithIndex) {
-            val value = regFile.io.contextOut.get(reg - 1)
-            dataMem.write(
-              (newSp >> 2) + i.U,
-              VecInit(value(7, 0), value(15, 8), value(23, 16), value(31, 24))
-            )
-          }
-
-          // Spill the return address to x1 and set the return address write flag
-          regFile.io.returnAddress.get := pc | 1.U
-          regFile.io.returnAddressWrite.get := true.B
-
-          regFile.io.rdAddr  := 2.U
-          regFile.io.rdData  := newSp
-          regFile.io.rdWrite := true.B
+        }.elsewhen(regFile.io.bufferAddrOut.get === 0.U) {
+          // This branch trigerred when the thunk is not evaluated yet and the buffer is not allocated
+          // This is "the buffer mode" and does not require spilling the caller-saved registers to the stack frame
+          regFile.io.bufferAddrIn.get := fn_ptr
+          regFile.io.useBuffer.get := true.B
 
           pc := fn_ptr
+        }.otherwise {
+          // This branch trigerred when the thunk is not evaluated yet and the buffer is already allocated
+          // This is "the memory mode"
+          regFile.io.rs1Addr := 2
+          val oldSp = regFile.io.rs1Data // x2 - sp
+          val newSp = oldSp - Thforce.frameBytes
+
+          val counter = RegInit(0.U(32.W))
+
+          when(counter < Thforce.savedRegisters.length.U) {
+            regFile.io.rs1Addr := Thforce.savedRegisters(counter)
+            val value = regFile.io.rs1Data
+
+            dataMem.write(
+              (newSp >> 2) + counter,
+              VecInit(value(7, 0), value(15, 8), value(23, 16), value(31, 24))
+            )
+
+            counter := counter + 1.U
+            pc := pc
+          }.otherwise {
+            counter := 0.U
+
+            // Spill the return address to x1 and set the return address write flag
+            regFile.io.returnAddress.get := pc | 1.U
+            regFile.io.returnAddressWrite.get := true.B
+
+            regFile.io.rdAddr := 2.U
+            regFile.io.rdData := newSp
+            regFile.io.rdWrite := true.B
+
+            pc := fn_ptr
+          }
         }
       }
     }
