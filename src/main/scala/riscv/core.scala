@@ -230,6 +230,8 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
     pc := pc + 4.U
   }.elsewhen(decoder.io.envCall || decoder.io.envBreak) {
     io.halt := true.B
+  }.elsewhen(decoder.io.fence) {
+    pc := pc + 4.U
   }
 
   if (withThforce) {
