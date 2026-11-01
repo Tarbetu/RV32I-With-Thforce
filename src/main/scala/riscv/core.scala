@@ -27,6 +27,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
   regFile.io.rs2Addr := 0.U
 
   if (withThforce) {
+    regFile.io.rs3Addr := 0.U
     regFile.io.deallocSp := false.B
     regFile.io.returnAddress.get := 0.U
     regFile.io.returnAddressWrite.get := false.B
@@ -261,16 +262,16 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       val destinationAddr = regFile.io.rs2Data
       val destinationWord = destinationAddr >> 2
       val bufferMode = (regFile.io.bufferAddrOut.get === (pc >> 1))
-      val isReturned = regFile.io.contextOut.get(0) === (pc | 1.U)
+      val spMode = regFile.io.x1Value.get === (pc | 1.U)
 
       when (bufferMode) {
-        // This branch is triggered when the thunk is in return phrase and buffer mode
+        // This branch is triggered when the thunk is in a return phrase and buffer mode
         regFile.io.bufferConsume.get := true.B
         regFile.io.bufferAddrIn := 0.U
 
         pc := pc + 4
-      }.elsewhen(isReturned) {
-        // This branch is triggered when the thunk is in return phrase and stack memory mode
+      }.elsewhen(spMode) {
+        // This branch is triggered when the thunk is in a return phrase and stack memory mode
         val ptrLanes = VecInit(
           fn_ptr(7, 0),
           fn_ptr(15, 8),
@@ -287,8 +288,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
         dataMem.write(destinationWord, ptrLanes)
         dataMem.write(destinationWord + 1.U, valueLanes)
 
-        regFile.io.rs1Addr := 2
-        val base = regFile.io.rs1Data // x2 - sp
+        val base = regFile.io.x2Value.get // x2 - sp
 
         val counter = RegInit(0)
 
@@ -345,15 +345,14 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
         }.otherwise {
           // This branch trigerred when the thunk is not evaluated yet and the buffer is already allocated
           // This is "the memory mode"
-          regFile.io.rs1Addr := 2
-          val oldSp = regFile.io.rs1Data // x2 - sp
+          val oldSp = regFile.io.x2Value.get // x2 - sp
           val newSp = oldSp - Thforce.frameBytes
 
           val counter = RegInit(0.U(32.W))
 
           when(counter < Thforce.savedRegisters.length.U) {
-            regFile.io.rs1Addr := Thforce.savedRegisters(counter)
-            val value = regFile.io.rs1Data
+            regFile.io.rs3Addr := Thforce.savedRegisters(counter)
+            val value = regFile.io.rs3Data
 
             dataMem.write(
               (newSp >> 2) + counter,

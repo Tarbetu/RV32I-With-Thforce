@@ -18,7 +18,11 @@ class RegFile(withThforce: Boolean = true) extends Module {
     //
     // This group is for the memory mode
     // If buffer is already occupied, THFORCE instruction will use stack memory to save the context
-    val deallocSp = if (withThforce) Some(Input(Bool)) else None
+    val rs3Addr = if (withThforce) Some(Input(UInt(5.W))) else None
+    val rs3Data = if (withThforce) Some(Output(UInt(32.W))) else None
+    val deallocSp = if (withThforce) Some(Input(Bool())) else None
+    val x1Value = if (withThforce) Some(Output(UInt(32.W))) else None
+    val x2Value = if (withThforce) Some(Output(UInt(32.W))) else None
     val returnAddress = if (withThforce) Some(Input(UInt(32.W))) else None
     val returnAddressWrite = if (withThforce) Some(Input(Bool())) else None
     val returnedValue = if (withThforce) Some(Output(UInt(32.W))) else None
@@ -63,23 +67,32 @@ class RegFile(withThforce: Boolean = true) extends Module {
   )
 
   when(io.rdWrite && io.rdAddr =/= 0.U) {
-    registers(io.rdAddr - 1.U, io.rdData)
+    registers(io.rdAddr - 1.U) := io.rdData
   }
 
   if (withThforce) {
     io.bufferAddrOut.get := bufferAddr.get
     io.returnedValue.get := registers(9) // a0 - x10
+    io.x1Value.get := registers(0)
+    io.x2Value.get := registers(1)
+    io.rs3Data := Mux(
+      io.rs3Addr === 0.U,
+      0.U,
+      registers(io.rs3Addr - 1.U)
+    )
 
-    when(deallocSp) {
+    when(io.deallocSp.get) {
       registers(2) := registers(2) + Thforce.frameBytes
     }
 
     when(io.bufferConsume.get && bufferAddr.get =/= 0.U) {
       val vals =
-        thunkBuffer.asTypeOf(Vec(Thunk.savedRegisters.length, UInt(32.W)))
+        thunkBuffer.get.asTypeOf(Vec(Thforce.savedRegisters.length, UInt(32.W)))
+
       for ((reg, i) <- Thforce.savedRegisters.zipWithIndex) {
         registers(reg) := vals(i)
       }
+
       bufferAddr.get := 0.U
       io.bufferAddrOut.get := 0.U
     }
@@ -91,7 +104,7 @@ class RegFile(withThforce: Boolean = true) extends Module {
     }
 
     when(io.returnAddressWrite.get) {
-      registers(0, io.returnAddress.get)
+      registers(0) := io.returnAddress.get
     }
   }
 }

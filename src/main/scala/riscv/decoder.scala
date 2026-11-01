@@ -178,7 +178,7 @@ class Decoder(withThforce: Boolean = true) extends Module {
       io.immediate_u := Cat(
         io.instruction(31),
         io.instruction(19, 12),
-        io.instruction(22),
+        io.instruction(20),
         io.instruction(30, 21)
       )
     }
