@@ -6,7 +6,7 @@ import chisel3.util._
 // List of caller-saved registers (per the RISC-V ABI)
 // Used for THFORCE.
 object Thforce {
-  val savedRegisters: Seq[UInt] = Seq(1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31).map(_.U)
+  val savedRegisters: Seq[UInt] = Seq(1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31).map(_.U)
   val frameBytes = 64.U(32.W)
 }
 

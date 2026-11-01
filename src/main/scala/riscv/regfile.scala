@@ -46,12 +46,12 @@ class RegFile(withThforce: Boolean = true) extends Module {
   val registers = RegInit(VecInit(Seq.fill(31)(0.U(32.W))))
 
   // Dedicated register for the buffer mode
-  val thunkBuffer = if (withThforce) Some(RegInit(0.U(512.W))) else None
+  val thunkBuffer = if (withThforce) Some(RegInit(0.U(480.W))) else None
   // Contains the function pointer, it can determine that which thunk uses the buffer
   val bufferAddr = if (withThforce) Some(RegInit(0.U(32.W))) else None
   // Just concatenates the context into in a value of 512bit
   val contextPackage =
-    if (withThforce) Some(Cat(Thforce.savedRegisters.map(registers(_))).asUInt)
+    if (withThforce) Some(Cat(Thforce.savedRegisters.filter(reg => reg != 10).map(registers(_))).asUInt)
     else None
 
   io.rs1Data := Mux(
@@ -89,7 +89,7 @@ class RegFile(withThforce: Boolean = true) extends Module {
       val vals =
         thunkBuffer.get.asTypeOf(Vec(Thforce.savedRegisters.length, UInt(32.W)))
 
-      for ((reg, i) <- Thforce.savedRegisters.zipWithIndex) {
+      for ((reg, i) <- Thforce.savedRegisters.filter(reg => reg != 10).zipWithIndex) {
         registers(reg) := vals(i)
       }
 
