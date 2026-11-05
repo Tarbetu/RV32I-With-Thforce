@@ -249,13 +249,13 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       val spMode = regFile.io.x1Value.get === (pc | 1.U)
       val spReturningPhrase = RegInit(false.B)
 
-      when (bufferMode) {
+      when(bufferMode) {
         // This branch is triggered when the thunk is in a return phrase and buffer mode
         regFile.io.bufferConsume.get := true.B
-        regFile.io.bufferAddrIn.get  := 0.U
-        regFile.io.rdAddr    := decoder.io.rd
-        regFile.io.rdData    := regFile.io.returnedValue.get
-        regFile.io.rdWrite   := true.B
+        regFile.io.bufferAddrIn.get := 0.U
+        regFile.io.rdAddr := decoder.io.rd
+        regFile.io.rdData := regFile.io.returnedValue.get
+        regFile.io.rdWrite := true.B
 
         dataMem.write(destinationWord, fn_ptr)
         dataMem.write(destinationWord + 1.U, regFile.io.returnedValue.get)
@@ -276,15 +276,15 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
           val reg = VecInit(Thforce.savedRegisters)(counter)
           val value = dataMem.read((base >> 2) + counter)
 
-          regFile.io.rdAddr  := reg
-          regFile.io.rdData  := value
+          regFile.io.rdAddr := reg
+          regFile.io.rdData := value
           regFile.io.rdWrite := true.B
 
           counter := counter + 1.U
           pc := pc
         }.otherwise {
-          regFile.io.rdAddr  := decoder.io.rd
-          regFile.io.rdData  := dataMem(destinationWord + 1.U)
+          regFile.io.rdAddr := decoder.io.rd
+          regFile.io.rdData := dataMem(destinationWord + 1.U)
           regFile.io.rdWrite := true.B
           regFile.io.deallocSp.get := true.B
 
