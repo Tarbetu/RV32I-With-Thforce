@@ -51,7 +51,7 @@ class RegFile(withThforce: Boolean = true) extends Module {
   val bufferAddr = if (withThforce) Some(RegInit(0.U(32.W))) else None
   // Just concatenates the context into in a value of 512bit
   val contextPackage =
-    if (withThforce) Some(Cat(Thforce.savedRegisters.filter(_ != 10).map(registers(reg => reg - 1))).asUInt)
+    if (withThforce) Some(Cat(Thforce.bufferedRegisters.map(reg => registers(reg.litValue.toInt - 1))).asUInt)
     else None
 
   io.rs1Data := Mux(
@@ -87,10 +87,10 @@ class RegFile(withThforce: Boolean = true) extends Module {
 
     when(io.bufferConsume.get && bufferAddr.get =/= 0.U) {
       val vals =
-        thunkBuffer.get.asTypeOf(Vec(Thforce.savedRegisters.length, UInt(32.W)))
+        thunkBuffer.get.asTypeOf(Vec(Thforce.bufferedRegisters.length, UInt(32.W)))
 
-      for ((reg, i) <- Thforce.savedRegisters.filter(_ != 10).zipWithIndex) {
-        registers(reg) := vals(i)
+      for ((reg, i) <- Thforce.bufferedRegisters.zipWithIndex) {
+        registers(reg.litValue.toInt - 1) := vals(i)
       }
 
       bufferAddr.get := 0.U
