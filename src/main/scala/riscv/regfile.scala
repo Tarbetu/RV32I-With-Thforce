@@ -18,8 +18,13 @@ class RegFile(withThforce: Boolean = true) extends Module {
     //
     // This group is for the memory mode
     // If buffer is already occupied, THFORCE instruction will use stack memory to save the context
+    val rd2Addr = if (withThforce) Some(Input(UInt(5.W))) else None
+    val rd2Data = if (withThforce) Some(Input(UInt(32.W))) else None
+    val rd2Write = if (withThforce) Some(Input(Bool())) else None
     val rs3Addr = if (withThforce) Some(Input(UInt(5.W))) else None
     val rs3Data = if (withThforce) Some(Output(UInt(32.W))) else None
+    val rs4Addr = if (withThforce) Some(Input(UInt(5.W))) else None
+    val rs4Data = if (withThforce) Some(Output(UInt(32.W))) else None
     val deallocSp = if (withThforce) Some(Input(Bool())) else None
     val x1Value = if (withThforce) Some(Output(UInt(32.W))) else None
     val x2Value = if (withThforce) Some(Output(UInt(32.W))) else None
@@ -39,6 +44,7 @@ class RegFile(withThforce: Boolean = true) extends Module {
     // Provides the address of the instruction,
     // so that instruction can track whether it's in the buffer mode or not
     val bufferAddrOut = if (withThforce) Some(Output(UInt(32.W))) else None
+    val bufferValidOut = if (withThforce) Some(Output(Bool())) else None
     // Signal to loading the buffer into the registers, then resets the signal
     val bufferConsume = if (withThforce) Some(Input(Bool())) else None
   })
@@ -46,12 +52,14 @@ class RegFile(withThforce: Boolean = true) extends Module {
   val registers = RegInit(VecInit(Seq.fill(31)(0.U(32.W))))
 
   // Dedicated register for the buffer mode
-  val thunkBuffer = if (withThforce) Some(RegInit(0.U(480.W))) else None
+  val thunkBuffer = if (withThforce) Some(RegInit(0.U(512.W))) else None
   // Contains the function pointer, it can determine that which thunk uses the buffer
   val bufferAddr = if (withThforce) Some(RegInit(0.U(32.W))) else None
+  val bufferValid = if (withThforce) Some(RegInit(false.B)) else None
   // Just concatenates the context into in a value of 512bit
   val contextPackage =
-    if (withThforce) Some(Cat(Thforce.bufferedRegisters.map(reg => registers(reg.litValue.toInt - 1))).asUInt)
+    if (withThforce)
+      Some(VecInit(Thforce.savedRegisters.map(reg => registers(reg.litValue.toInt - 1))).asUInt)
     else None
 
   io.rs1Data := Mux(
@@ -72,6 +80,7 @@ class RegFile(withThforce: Boolean = true) extends Module {
 
   if (withThforce) {
     io.bufferAddrOut.get := bufferAddr.get
+    io.bufferValidOut.get := bufferValid.get
     io.returnedValue.get := registers(9) // a0 - x10
     io.x1Value.get := registers(0)
     io.x2Value.get := registers(1)
@@ -80,25 +89,35 @@ class RegFile(withThforce: Boolean = true) extends Module {
       0.U,
       registers(io.rs3Addr.get - 1.U)
     )
+    io.rs4Data.get := Mux(
+      io.rs3Addr.get === 0.U,
+      0.U,
+      registers(io.rs3Addr.get - 1.U)
+    )
+    when(io.rd2Write && io.rd2Addr =/= 0.U) {
+      registers(io.rd2Addr - 1.U) := io.rd2Data
+    }
 
     when(io.deallocSp.get) {
       registers(1) := registers(1) + Thforce.frameBytes
     }
 
-    when(io.bufferConsume.get && bufferAddr.get =/= 0.U) {
+    when(io.bufferConsume.get && bufferValid.get) {
       val vals =
-        thunkBuffer.get.asTypeOf(Vec(Thforce.bufferedRegisters.length, UInt(32.W)))
+        thunkBuffer.get.asTypeOf(Vec(Thforce.savedRegisters.length, UInt(32.W)))
 
-      for ((reg, i) <- Thforce.bufferedRegisters.zipWithIndex) {
+      for ((reg, i) <- Thforce.savedRegisters.zipWithIndex) {
         registers(reg.litValue.toInt - 1) := vals(i)
       }
 
       bufferAddr.get := 0.U
+      bufferValid.get := false.B
     }
 
     when(io.useBuffer.get) {
       thunkBuffer.get := contextPackage.get
       bufferAddr.get := io.bufferAddrIn.get
+      bufferValid.get := true.B
     }
 
     when(io.returnAddressWrite.get) {

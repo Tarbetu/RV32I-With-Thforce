@@ -9,9 +9,15 @@ class InstructionMem(program: Seq[UInt]) extends Module {
     val data = Output(UInt(32.W))
   })
 
-  if (program.size == 1) {
-    io.data := program.head
+  val nop = 0x00000013.U(32.W)
+
+  if (program.isEmpty) {
+    io.data := nop
+  } else if (program.size == 1) {
+    io.data := Mux(io.addr === 0.U, program.head, nop)
   } else {
-    io.data := VecInit(program)(io.addr(log2Ceil(program.size) - 1, 0))
+    val idxBits = log2Ceil(program.size)
+    val padded = program.padTo(1 << idxBits, nop)
+    io.data := VecInit(padded)(io.addr(idxBits - 1, 0))
   }
 }

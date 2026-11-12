@@ -1,0 +1,2 @@
+JAL x0, 0x100
+EBREAK

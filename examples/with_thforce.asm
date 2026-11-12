@@ -5,6 +5,7 @@
 LI sp, 4000
 
 LI t5, 1000
+SW x0, 0(t5)
 LA t6, the_function
 
 # The Assembly doesn't know anything about THFORCE yet :)

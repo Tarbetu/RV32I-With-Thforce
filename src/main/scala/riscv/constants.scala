@@ -7,8 +7,11 @@ import chisel3.util._
 // Used for THFORCE.
 object Thforce {
   val savedRegisters: Seq[UInt] = Seq(1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31).map(_.U)
-  val bufferedRegisters: Seq[UInt] = savedRegisters.filter(_.litValue != BigInt(10))
   val frameBytes = 64.U(32.W)
+}
+
+object MemOp extends ChiselEnum {
+ val Read, Write, None = Value
 }
 
 object AluOp extends ChiselEnum {

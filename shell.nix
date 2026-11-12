@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/tarball/nixos-26.05") {} }:
 
 with pkgs;
 
@@ -65,6 +65,7 @@ mkShell {
     sbt
     scala_2_13
     metals
+    python3
     verilator
     surfer
     riscv-toolchain.buildPackages.binutils

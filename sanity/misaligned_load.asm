@@ -1,0 +1,3 @@
+LI t5, 1001
+LW t0, 0(t5)
+EBREAK

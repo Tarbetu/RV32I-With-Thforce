@@ -10,6 +10,7 @@ LI sp, 4000
 
 # t5 holding the pointer of the result location (rd, which is {fn_ptr, value_ptr})
 LI t5, 1000
+SW x0, 0(t5)
 # t1 holding the pointer of the value (rs1)
 LA t6, the_function
 
