@@ -3,7 +3,7 @@ package riscv
 import chisel3._
 import chisel3.util._
 
-class dataMem() extends Module {
+class DataMem() extends Module {
   val io = IO(new Bundle {
     val op1 = Input(MemOp())
     val addr1 = Input(UInt(32.W))
@@ -27,7 +27,7 @@ class dataMem() extends Module {
     val port = mem(io.addr1)
 
     when(io.op1 === MemOp.Write) {
-      when(addr1 != addr2) {
+      when(io.addr1 =/= io.addr2) {
         port := io.dataIn1
       }
     }.otherwise {
@@ -35,11 +35,11 @@ class dataMem() extends Module {
     }
   }
 
-  when(io.op2 != MemOp.None) {
+  when(io.op2 =/= MemOp.None) {
     val port = mem(io.addr2)
 
     when(io.op2 === MemOp.Write) {
-      when(addr1 != addr2) {
+      when(io.addr1 =/= io.addr2) {
         port := io.dataIn2
       }
     }.otherwise {

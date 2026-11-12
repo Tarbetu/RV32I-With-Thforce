@@ -1,10 +1,11 @@
 plugin -i slang
 read_slang -DSYNTHESIS generated/Core.sv\
                        generated/InstructionMem.sv\
+                       generated/DataMem.sv\
                        generated/Alu.sv\
                        generated/Decoder.sv\
                        generated/registers_31x32.sv\
-                       generated/dataMem_1024x32.sv\
+                       generated/mem_1024x32.sv\
                        generated/RegFile.sv
 hierarchy -top Core -check
 blackbox t:InstructionMem

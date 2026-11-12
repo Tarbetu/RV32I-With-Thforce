@@ -258,11 +258,11 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
         val word = regFile.io.rs2Data >> 2
 
         dataMem.io.op1 := MemOp.Write
-        dataMem.io.op1 := word
+        dataMem.io.addr1 := word
         dataMem.io.dataIn1 := regFile.io.rs1Data
 
         dataMem.io.op2 := MemOp.Write
-        dataMem.io.op2 := word + 1.U
+        dataMem.io.addr2 := word + 1.U
         dataMem.io.dataIn2 := thunkReturnValue
 
         regFile.io.rdAddr := decoder.io.rd
@@ -284,12 +284,12 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
         val nextReg = thunkCounter * 2.U
         val currentReg = nextReg - 2.U
 
-        when(thunkCounter === 0) {
+        when(thunkCounter === 0.U) {
           dataMem.io.op1 := MemOp.Read
-          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2)
+          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2.U)
 
-          regFile.io.op2 := MemOp.Read
-          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2) + 1
+          dataMem.io.op2 := MemOp.Read
+          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2.U) + 1.U
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
@@ -298,15 +298,15 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
           regFile.io.rdData := dataMem.io.dataOut1
           regFile.io.rdWrite := true.B
 
-          regFile.io.rd2Addr := savedRegs(currentReg + 1)
-          regFile.io.rd2Data := dataMem.io.dataOut2
-          regFile.io.rd2Write := true.B
+          regFile.io.rd2Addr.get := savedRegs(currentReg + 1.U)
+          regFile.io.rd2Data.get := dataMem.io.dataOut2
+          regFile.io.rd2Write.get := true.B
 
           dataMem.io.op1 := MemOp.Read
-          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2) + nextReg
+          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2.U) + nextReg
 
-          regFile.io.op2 := MemOp.Read
-          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2) + nextReg + 1
+          dataMem.io.op2 := MemOp.Read
+          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2.U) + nextReg + 1.U
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
@@ -316,9 +316,9 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
           regFile.io.rdData := dataMem.io.dataOut1
           regFile.io.rdWrite := true.B
 
-          regFile.io.rd2Addr := savedRegs(currentReg + 1)
-          regFile.io.rd2Data := dataMem.io.dataOut2
-          regFile.io.rd2Write := true.B
+          regFile.io.rd2Addr.get := savedRegs(currentReg + 1.U)
+          regFile.io.rd2Data.get := dataMem.io.dataOut2
+          regFile.io.rd2Write.get := true.B
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
@@ -329,11 +329,11 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
           val word = destination >> 2
 
           dataMem.io.op1 := MemOp.Write
-          dataMem.io.op1 := word
+          dataMem.io.addr1 := word
           dataMem.io.dataIn1 := regFile.io.rs1Data
 
           dataMem.io.op2 := MemOp.Write
-          dataMem.io.op2 := word + 1.U
+          dataMem.io.addr2 := word + 1.U
           dataMem.io.dataIn2 := thunkReturnValue
 
           regFile.io.rdAddr := decoder.io.rd
@@ -370,30 +370,45 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
             val newSp = regFile.io.x2Value.get - Thforce.frameBytes
             val nextReg = thunkCounter * 2.U
 
-            when(thunkCounter === 0) {
+            when(thunkCounter === 0.U) {
               regFile.io.rs3Addr.get := savedRegs(0)
-              dataMem.write((newSp >> 2), regFile.io.rs3Data.get)
-
               regFile.io.rs4Addr.get := savedRegs(1)
-              dataMem.write((newSp >> 2) + 1, regFile.io.rs4Data.get)
+
+              dataMem.io.op1 := MemOp.Write
+              dataMem.io.addr1 := (newSp >> 2)
+              dataMem.io.dataIn1 := regFile.io.rs3Data.get
+
+              dataMem.io.op2 := MemOp.Write
+              dataMem.io.addr2 := (newSp >> 2) + 1.U
+              dataMem.io.dataIn2 := regFile.io.rs4Data.get
 
               thunkCounter := thunkCounter + 1.U
               pc := pc
-            }.elsewhen(thunkCounter < savedCount - 1) {
+            }.elsewhen(thunkCounter < savedCount - 1.U) {
               regFile.io.rs3Addr.get := savedRegs(nextReg)
-              dataMem.write((newSp >> 2) + nextReg, regFile.io.rs3Data.get)
-
               regFile.io.rs4Addr.get := savedRegs(nextReg + 1.U)
-              dataMem.write((newSp >> 2) + nextReg + 1.U, regFile.io.rs4Data.get)
+
+              dataMem.io.op1 := MemOp.Write
+              dataMem.io.addr1 := (newSp >> 2) + nextReg
+              dataMem.io.dataIn1 := regFile.io.rs3Data.get
+
+              dataMem.io.op2 := MemOp.Write
+              dataMem.io.addr2 := (newSp >> 2) + nextReg + 1.U
+              dataMem.io.dataIn2 := regFile.io.rs4Addr.get
 
               thunkCounter := thunkCounter + 1.U
               pc := pc
             }.otherwise {
               regFile.io.rs3Addr.get := savedRegs(14)
-              dataMem.write((newSp >> 2) + 14, regFile.io.rs3Data.get)
-
               regFile.io.rs4Addr.get := savedRegs(15)
-              dataMem.write((newSp >> 2) + 15, regFile.io.rs4Data.get)
+
+              dataMem.io.op1 := MemOp.Write
+              dataMem.io.addr1 := (newSp >> 2) + 14.U
+              dataMem.io.dataIn1 := regFile.io.rs3Data.get
+
+              dataMem.io.op2 := MemOp.Write
+              dataMem.io.addr2 := (newSp >> 2) + 15.U
+              dataMem.io.dataIn2 := regFile.io.rs4Data.get
 
               thunkCounter := 0.U
               regFile.io.returnAddress.get := pc | 1.U

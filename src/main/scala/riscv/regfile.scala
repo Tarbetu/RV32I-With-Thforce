@@ -94,8 +94,8 @@ class RegFile(withThforce: Boolean = true) extends Module {
       0.U,
       registers(io.rs3Addr.get - 1.U)
     )
-    when(io.rd2Write && io.rd2Addr =/= 0.U) {
-      registers(io.rd2Addr - 1.U) := io.rd2Data
+    when(io.rd2Write.get && io.rd2Addr.get =/= 0.U) {
+      registers(io.rd2Addr.get - 1.U) := io.rd2Data.get
     }
 
     when(io.deallocSp.get) {
