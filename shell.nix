@@ -1,4 +1,5 @@
-{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/tarball/nixos-26.05") {} }:
+# { pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/tarball/nixos-26.05") {} }:
+{ pkgs ? import <nixpkgs> {} }:
 
 with pkgs;
 

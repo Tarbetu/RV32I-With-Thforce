@@ -18,13 +18,8 @@ class RegFile(withThforce: Boolean = true) extends Module {
     //
     // This group is for the memory mode
     // If buffer is already occupied, THFORCE instruction will use stack memory to save the context
-    val rd2Addr = if (withThforce) Some(Input(UInt(5.W))) else None
-    val rd2Data = if (withThforce) Some(Input(UInt(32.W))) else None
-    val rd2Write = if (withThforce) Some(Input(Bool())) else None
     val rs3Addr = if (withThforce) Some(Input(UInt(5.W))) else None
     val rs3Data = if (withThforce) Some(Output(UInt(32.W))) else None
-    val rs4Addr = if (withThforce) Some(Input(UInt(5.W))) else None
-    val rs4Data = if (withThforce) Some(Output(UInt(32.W))) else None
     val deallocSp = if (withThforce) Some(Input(Bool())) else None
     val x1Value = if (withThforce) Some(Output(UInt(32.W))) else None
     val x2Value = if (withThforce) Some(Output(UInt(32.W))) else None
@@ -89,14 +84,6 @@ class RegFile(withThforce: Boolean = true) extends Module {
       0.U,
       registers(io.rs3Addr.get - 1.U)
     )
-    io.rs4Data.get := Mux(
-      io.rs3Addr.get === 0.U,
-      0.U,
-      registers(io.rs3Addr.get - 1.U)
-    )
-    when(io.rd2Write.get && io.rd2Addr.get =/= 0.U) {
-      registers(io.rd2Addr.get - 1.U) := io.rd2Data.get
-    }
 
     when(io.deallocSp.get) {
       registers(1) := registers(1) + Thforce.frameBytes

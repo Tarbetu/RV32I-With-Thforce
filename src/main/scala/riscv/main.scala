@@ -10,21 +10,11 @@ object Main extends App {
     case None        => true
   }
 
-  val program: Seq[UInt] = sys.env.get("PROG") match {
+  val program = sys.env.get("PROG") match {
     case Some(prog) =>
-      scala.io.Source.fromFile(prog)
-        .getLines()
-        .drop(1)
-        .flatMap(_.split("\\s+"))
-        .filter(_.nonEmpty)
-        .map(hex => BigInt(hex, 16).U(32.W))
-        .toSeq
+      prog
     case None =>
-      Seq(
-        BigInt("00500093", 16).U(32.W),  // addi x1, x0, 5
-        BigInt("00A00113", 16).U(32.W),  // addi x2, x0, 10
-        BigInt("00100073", 16).U(32.W)   // ebreak
-      )
+      "examples/default.hex"
   }
 
   ChiselStage.emitSystemVerilogFile(

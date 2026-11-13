@@ -4,11 +4,14 @@ read_slang -DSYNTHESIS generated/Core.sv\
                        generated/DataMem.sv\
                        generated/Alu.sv\
                        generated/Decoder.sv\
-                       generated/registers_31x32.sv\
                        generated/mem_1024x32.sv\
+                       generated/mem_1024x32_0.sv\
+                       generated/mem_1024x32_0_init.sv\
                        generated/RegFile.sv
-hierarchy -top Core -check
 blackbox t:InstructionMem
+setattr -set ram_style "block" m:mem_1024x32.Memory
+setattr -set ram_style "block" m:mem_1024x32_0.Memory
+hierarchy -top Core -check
 synth_ecp5 -abc9
 stat -hierarchy
 write_json generated/core.json

@@ -3,7 +3,7 @@ package riscv
 import chisel3._
 import chisel3.util._
 
-class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
+class Core(program: String, withThforce: Boolean = true) extends Module {
   val io = IO(new Bundle {
     val debug = Output(UInt(32.W))
     val halt = Output(Bool())
@@ -21,12 +21,11 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
   io.debug := 0.U
   io.halt := false.B
 
-  dataMem.io.op1 := MemOp.None
-  dataMem.io.op2 := MemOp.None
-  dataMem.io.addr1 := 0.U
-  dataMem.io.addr2 := 0.U
-  dataMem.io.dataIn1 := 0.U
-  dataMem.io.dataIn2 := 0.U
+  dataMem.io.read  := false.B
+  dataMem.io.write := false.B
+  dataMem.io.readAddr := 0.U
+  dataMem.io.writeAddr := 0.U
+  dataMem.io.dataIn := 0.U
 
   regFile.io.rdWrite := false.B
   regFile.io.rdAddr := 0.U
@@ -36,11 +35,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
   regFile.io.rs2Addr := 0.U
 
   if (withThforce) {
-    regFile.io.rd2Write.get := false.B
-    regFile.io.rd2Addr.get := 0.U
-    regFile.io.rd2Data.get := 0.U
     regFile.io.rs3Addr.get := 0.U
-    regFile.io.rs4Addr.get := 0.U
     regFile.io.deallocSp.get := false.B
     regFile.io.returnAddress.get := 0.U
     regFile.io.returnAddressWrite.get := false.B
@@ -64,7 +59,11 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
 
   decoder.io.instruction := instruction
 
-  val execution = when(decoder.io.aluOp =/= AluOp.None) {
+  val progReady = RegNext(true.B, false.B)
+
+  val execution = when(!progReady) {
+    pc := 0.U
+  }.elsewhen(decoder.io.aluOp =/= AluOp.None) {
     regFile.io.rs1Addr := decoder.io.rs1
     regFile.io.rdAddr := decoder.io.rd
     alu.io.op := decoder.io.aluOp
@@ -148,7 +147,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
 
     when(fetch) {
       val byteOff = dataAddr(1, 0)
-      val word = dataMem.io.dataOut1
+      val word = dataMem.io.dataOut
 
       val byteData = MuxLookup(byteOff, word(7, 0))(
         Seq(
@@ -178,9 +177,8 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       fetch := false.B
       pc := pc + 4.U
     }.otherwise {
-      dataMem.io.op1 := MemOp.Read
-      dataMem.io.addr1 := wordAddr
-
+      dataMem.io.read := true.B
+      dataMem.io.readAddr := wordAddr
 
       fetch := true.B
       pc := pc
@@ -199,7 +197,7 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
     val rs2 = regFile.io.rs2Data
 
     when(fetch) {
-      val oldWord = dataMem.io.dataOut1
+      val oldWord = dataMem.io.dataOut
 
       import StoreSize._
       val sizeMask = MuxLookup(decoder.io.storeSize, "hFFFFFFFF".U(32.W))(
@@ -213,16 +211,16 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       val shifted = (rs2 << shift)(31, 0)
       val newWord = (oldWord & ~mask) | (shifted & mask)
 
-      dataMem.io.op1 := MemOp.Write
-      dataMem.io.addr1 := wordAddr
-      dataMem.io.dataIn1 := newWord
+      dataMem.io.write := true.B
+      dataMem.io.writeAddr := wordAddr
+      dataMem.io.dataIn := newWord
       io.debug := newWord
 
       fetch := false.B
       pc := pc + 4.U
     }.otherwise {
-      dataMem.io.op1 := MemOp.Read
-      dataMem.io.addr1 := wordAddr
+      dataMem.io.read := true.B
+      dataMem.io.readAddr := wordAddr
 
       fetch := true.B
       pc := pc
@@ -242,34 +240,41 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
       regFile.io.rs2Addr := decoder.io.rd
       val destinationWord = regFile.io.rs2Data >> 2
 
-      val spReturningPhrase = if (withThforce) RegInit(false.B) else false.B
-      val bufferReturningPhrase = if (withThforce) RegInit(false.B) else false.B
-      val thunkReturnValue = if (withThforce) RegInit(0.U(32.W)) else 0.U(32.W)
+      val spReturningPhrase = RegInit(false.B)
+      val bufferReturningPhrase = RegInit(false.B)
+      val thunkReturnValue = RegInit(0.U(32.W))
 
-      // Two registers can be read and written to memory in a cycle
-      val thunkCounter = RegInit(0.U(4.W))
+      val thunkCounter = RegInit(0.U(5.W))
       val savedRegs = VecInit(Thforce.savedRegisters)
-      val savedCount = (Thforce.savedRegisters.length / 2).U
+      val savedCount = (Thforce.savedRegisters.length).U
 
       val bufferMode = regFile.io.bufferValidOut.get && (regFile.io.bufferAddrOut.get === pc)
       val spMode = regFile.io.x1Value.get === (pc | 1.U)
 
       when(bufferReturningPhrase) {
         val word = regFile.io.rs2Data >> 2
+        val write = RegInit(false.B)
 
-        dataMem.io.op1 := MemOp.Write
-        dataMem.io.addr1 := word
-        dataMem.io.dataIn1 := regFile.io.rs1Data
+        when(write) {
+          dataMem.io.write := true.B
+          dataMem.io.writeAddr := word + 1.U
+          dataMem.io.dataIn := thunkReturnValue
 
-        dataMem.io.op2 := MemOp.Write
-        dataMem.io.addr2 := word + 1.U
-        dataMem.io.dataIn2 := thunkReturnValue
+          regFile.io.rdAddr := decoder.io.rd
+          regFile.io.rdData := thunkReturnValue
+          regFile.io.rdWrite := true.B
+          bufferReturningPhrase := false.B
 
-        regFile.io.rdAddr := decoder.io.rd
-        regFile.io.rdData := thunkReturnValue
-        regFile.io.rdWrite := true.B
-        bufferReturningPhrase := false.B
-        pc := pc + 4.U
+          write := false.B
+          pc := pc + 4.U
+        }.otherwise {
+          dataMem.io.write := true.B
+          dataMem.io.writeAddr := word
+          dataMem.io.dataIn := regFile.io.rs1Data
+
+          pc := pc
+        }
+
       }.elsewhen(bufferMode) {
         thunkReturnValue := regFile.io.returnedValue.get
         bufferReturningPhrase := true.B
@@ -281,83 +286,72 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
           spReturningPhrase := true.B
         }
 
-        val nextReg = thunkCounter * 2.U
-        val currentReg = nextReg - 2.U
+        val oldSp = regFile.io.x2Value.get + Thforce.frameBytes
+        val fnPtrValue = Mux(decoder.io.rs1 === 2.U, oldSp, regFile.io.rs1Data)
+        val destination = Mux(decoder.io.rd === 2.U, oldSp, regFile.io.rs2Data)
+        val word = destination >> 2
 
         when(thunkCounter === 0.U) {
-          dataMem.io.op1 := MemOp.Read
-          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2.U)
-
-          dataMem.io.op2 := MemOp.Read
-          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2.U) + 1.U
+          dataMem.io.read := true.B
+          dataMem.io.readAddr := (regFile.io.x2Value.get >> 2.U)
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
         }.elsewhen(thunkCounter < savedCount) {
-          regFile.io.rdAddr := savedRegs(currentReg)
-          regFile.io.rdData := dataMem.io.dataOut1
+          regFile.io.rdAddr := savedRegs(thunkCounter - 1.U)
+          regFile.io.rdData := dataMem.io.dataOut
           regFile.io.rdWrite := true.B
 
-          regFile.io.rd2Addr.get := savedRegs(currentReg + 1.U)
-          regFile.io.rd2Data.get := dataMem.io.dataOut2
-          regFile.io.rd2Write.get := true.B
-
-          dataMem.io.op1 := MemOp.Read
-          dataMem.io.addr1 := (regFile.io.x2Value.get >> 2.U) + nextReg
-
-          dataMem.io.op2 := MemOp.Read
-          dataMem.io.addr2 := (regFile.io.x2Value.get >> 2.U) + nextReg + 1.U
+          dataMem.io.read := true.B
+          dataMem.io.readAddr := (regFile.io.x2Value.get >> 2.U) + thunkCounter
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
         }.elsewhen(thunkCounter === savedCount){
           // This branch can be eliminated, I believe
-          regFile.io.rdAddr := savedRegs(currentReg)
-          regFile.io.rdData := dataMem.io.dataOut1
+          regFile.io.rdAddr := savedRegs(thunkCounter - 1.U)
+          regFile.io.rdData := dataMem.io.dataOut
           regFile.io.rdWrite := true.B
 
-          regFile.io.rd2Addr.get := savedRegs(currentReg + 1.U)
-          regFile.io.rd2Data.get := dataMem.io.dataOut2
-          regFile.io.rd2Write.get := true.B
+          dataMem.io.write := true.B
+          dataMem.io.writeAddr := word
+          dataMem.io.dataIn := regFile.io.rs1Data
 
           thunkCounter := thunkCounter + 1.U
           pc := pc
         }.otherwise {
-          val oldSp = regFile.io.x2Value.get + Thforce.frameBytes
-          val fnPtrValue = Mux(decoder.io.rs1 === 2.U, oldSp, regFile.io.rs1Data)
-          val destination = Mux(decoder.io.rd === 2.U, oldSp, regFile.io.rs2Data)
-          val word = destination >> 2
-
-          dataMem.io.op1 := MemOp.Write
-          dataMem.io.addr1 := word
-          dataMem.io.dataIn1 := regFile.io.rs1Data
-
-          dataMem.io.op2 := MemOp.Write
-          dataMem.io.addr2 := word + 1.U
-          dataMem.io.dataIn2 := thunkReturnValue
+          dataMem.io.write := true.B
+          dataMem.io.writeAddr := word + 1.U
+          dataMem.io.dataIn := thunkReturnValue
 
           regFile.io.rdAddr := decoder.io.rd
           regFile.io.rdData := thunkReturnValue
           regFile.io.rdWrite := true.B
           regFile.io.deallocSp.get := decoder.io.rd =/= 2.U
+
           spReturningPhrase := false.B
           thunkCounter := 0.U
           pc := pc + 4.U
         }
       }.otherwise {
         val destinationFetch = RegInit(false.B)
+        val valueFetch = RegInit(false.B)
 
         when(destinationFetch) {
-          val destinationData = dataMem.io.dataOut1
-          val destinationValue = dataMem.io.dataOut1
-
-          when(destinationData === fnPtr) {
+          when(valueFetch) {
             regFile.io.rdAddr := decoder.io.rd
-            regFile.io.rdData := destinationValue
+            regFile.io.rdData := dataMem.io.dataOut
             regFile.io.rdWrite := true.B
 
             destinationFetch := false.B
+            valueFetch := false.B
             pc := pc + 4.U
+          }.elsewhen(dataMem.io.dataOut === fnPtr) {
+            dataMem.io.read := true.B
+            dataMem.io.readAddr := destinationWord + 1.U
+
+            valueFetch := true.B
+            pc := pc
           }.elsewhen(!regFile.io.bufferValidOut.get) {
             regFile.io.bufferAddrIn.get := pc
             regFile.io.useBuffer.get := true.B
@@ -368,47 +362,22 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
             pc := fnPtr
           }.otherwise {
             val newSp = regFile.io.x2Value.get - Thforce.frameBytes
-            val nextReg = thunkCounter * 2.U
 
-            when(thunkCounter === 0.U) {
-              regFile.io.rs3Addr.get := savedRegs(0)
-              regFile.io.rs4Addr.get := savedRegs(1)
+            when(thunkCounter < savedCount - 1.U) {
+              regFile.io.rs3Addr.get := savedRegs(thunkCounter)
 
-              dataMem.io.op1 := MemOp.Write
-              dataMem.io.addr1 := (newSp >> 2)
-              dataMem.io.dataIn1 := regFile.io.rs3Data.get
-
-              dataMem.io.op2 := MemOp.Write
-              dataMem.io.addr2 := (newSp >> 2) + 1.U
-              dataMem.io.dataIn2 := regFile.io.rs4Data.get
-
-              thunkCounter := thunkCounter + 1.U
-              pc := pc
-            }.elsewhen(thunkCounter < savedCount - 1.U) {
-              regFile.io.rs3Addr.get := savedRegs(nextReg)
-              regFile.io.rs4Addr.get := savedRegs(nextReg + 1.U)
-
-              dataMem.io.op1 := MemOp.Write
-              dataMem.io.addr1 := (newSp >> 2) + nextReg
-              dataMem.io.dataIn1 := regFile.io.rs3Data.get
-
-              dataMem.io.op2 := MemOp.Write
-              dataMem.io.addr2 := (newSp >> 2) + nextReg + 1.U
-              dataMem.io.dataIn2 := regFile.io.rs4Addr.get
+              dataMem.io.write := true.B
+              dataMem.io.writeAddr := (newSp >> 2) + thunkCounter
+              dataMem.io.dataIn := regFile.io.rs3Data.get
 
               thunkCounter := thunkCounter + 1.U
               pc := pc
             }.otherwise {
-              regFile.io.rs3Addr.get := savedRegs(14)
-              regFile.io.rs4Addr.get := savedRegs(15)
+              regFile.io.rs3Addr.get := savedRegs(15)
 
-              dataMem.io.op1 := MemOp.Write
-              dataMem.io.addr1 := (newSp >> 2) + 14.U
-              dataMem.io.dataIn1 := regFile.io.rs3Data.get
-
-              dataMem.io.op2 := MemOp.Write
-              dataMem.io.addr2 := (newSp >> 2) + 15.U
-              dataMem.io.dataIn2 := regFile.io.rs4Data.get
+              dataMem.io.write := true.B
+              dataMem.io.readAddr := (newSp >> 2) + 15.U
+              dataMem.io.dataIn := regFile.io.rs3Data.get
 
               thunkCounter := 0.U
               regFile.io.returnAddress.get := pc | 1.U
@@ -422,11 +391,8 @@ class Core(program: Seq[UInt], withThforce: Boolean = true) extends Module {
             }
           }
         }.otherwise {
-          dataMem.io.op1 := MemOp.Read
-          dataMem.io.addr1 := destinationWord
-
-          dataMem.io.op2 := MemOp.Read
-          dataMem.io.addr2 := destinationWord + 1.U
+          dataMem.io.read := true.B
+          dataMem.io.readAddr := destinationWord
 
           destinationFetch := true.B
           pc := pc

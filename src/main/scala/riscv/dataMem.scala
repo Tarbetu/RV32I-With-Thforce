@@ -5,45 +5,25 @@ import chisel3.util._
 
 class DataMem() extends Module {
   val io = IO(new Bundle {
-    val op1 = Input(MemOp())
-    val addr1 = Input(UInt(32.W))
-    val dataIn1  = Input(UInt(32.W))
-    val dataOut1 = Output(UInt(32.W))
+    val read = Input(Bool())
+    val readAddr = Input(UInt(32.W))
+    val dataOut = Output(UInt(32.W))
 
-    val op2 = Input(MemOp())
-    val addr2 = Input(UInt(32.W))
-    val dataIn2  = Input(UInt(32.W))
-    val dataOut2 = Output(UInt(32.W))
+    val write = Input(Bool())
+    val writeAddr = Input(UInt(32.W))
+    val dataIn = Input(UInt(32.W))
   })
 
   val mem = SyncReadMem(1024, UInt(32.W))
+  val dataHold = RegInit(0.U(32.W))
 
-  val dataHold1 = RegInit(0.U)
-  val dataHold2 = RegInit(0.U)
-  io.dataOut1 := dataHold1
-  io.dataOut2 := dataHold2
+  io.dataOut := dataHold
 
-  when(io.op1 =/= MemOp.None) {
-    val port = mem(io.addr1)
-
-    when(io.op1 === MemOp.Write) {
-      when(io.addr1 =/= io.addr2) {
-        port := io.dataIn1
-      }
-    }.otherwise {
-      dataHold1 := port
-    }
+  when(io.read) {
+    dataHold := mem(io.readAddr)
   }
 
-  when(io.op2 =/= MemOp.None) {
-    val port = mem(io.addr2)
-
-    when(io.op2 === MemOp.Write) {
-      when(io.addr1 =/= io.addr2) {
-        port := io.dataIn2
-      }
-    }.otherwise {
-      dataHold2 := port
-    }
+  when(io.write) {
+    mem.write(io.writeAddr, io.dataIn)
   }
 }

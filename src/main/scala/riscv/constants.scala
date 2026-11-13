@@ -10,10 +10,6 @@ object Thforce {
   val frameBytes = 64.U(32.W)
 }
 
-object MemOp extends ChiselEnum {
- val Read, Write, None = Value
-}
-
 object AluOp extends ChiselEnum {
   val Add, Sub, Xor, Or, And, ShiftRightLogical, ShiftLeftLogical, ShiftRightArith, SetLessThan, SetLessThanUnsigned, None = Value
 }
