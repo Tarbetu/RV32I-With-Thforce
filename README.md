@@ -79,9 +79,9 @@ PROG="program.hex" sbt run
 Here is the quick results:
 ``` sh
 --------- Without Thforce ---------
-Halted after 49 cycles.
+Halted after 86 cycles.
 ---------  With  Thforce  ---------
-Halted after 11 cycles.
+Halted after 9 cycles.
 ```
 
 You can compare cycle counts with the `./verilator_compare` script, which runs the simulation. For result-checking tests, use `./run_tests` as described below. If you're interested in the simulation artifacts, such as the hex files of the example programs, the Verilator output, and the VCD file, pass the `--keep` flag.

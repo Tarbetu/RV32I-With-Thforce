@@ -10,11 +10,13 @@ if [ ! -f "sim.cpp" ]; then
     exit 1
 fi
 
+mkdir -p generated
+
 riscv32-none-elf-as -march=rv32i -mabi=ilp32 examples/without_thforce.asm -o generated/without_thforce.o
 riscv32-none-elf-ld -T link.ld generated/without_thforce.o -o generated/without_thforce.elf
 riscv32-none-elf-objcopy -O verilog --verilog-data-width=4 generated/without_thforce.elf generated/without_thforce.hex
 
-PROG="generated/without_thforce.hex" sbt run > /dev/null
+PROG="$PWD/generated/without_thforce.hex" sbt run > /dev/null
 
 if [ ! -f "generated/filelist.f" ]; then
     echo "Error: No 'generated/filelist.f' found after build"
@@ -22,7 +24,7 @@ if [ ! -f "generated/filelist.f" ]; then
 fi
 
 cd generated
-verilator --cc --exe --build --trace --quiet -f filelist.f ../sim.cpp --top-module Core
+verilator --cc --exe --build --trace --quiet -f filelist.f mem_1024x32_0_init.sv ../sim.cpp --top-module Core
 
 echo "--------- Without Thforce ---------"
 obj_dir/VCore
@@ -37,7 +39,7 @@ riscv32-none-elf-as -march=rv32i -mabi=ilp32 examples/with_thforce.asm -o genera
 riscv32-none-elf-ld -T link.ld generated/with_thforce.o -o generated/with_thforce.elf
 riscv32-none-elf-objcopy -O verilog --verilog-data-width=4 generated/with_thforce.elf generated/with_thforce.hex
 
-PROG="generated/with_thforce.hex" sbt run > /dev/null
+PROG="$PWD/generated/with_thforce.hex" sbt run > /dev/null
 
 if [ ! -f "generated/filelist.f" ]; then
    echo "Error: No 'generated/filelist.f' found after build"
@@ -46,7 +48,7 @@ fi
 
 cd generated
 
-verilator --cc --exe --build --trace --quiet -f filelist.f ../sim.cpp --top-module Core
+verilator --cc --exe --build --trace --quiet -f filelist.f mem_1024x32_0_init.sv ../sim.cpp --top-module Core
 
 echo "---------  With  Thforce  ---------"
 obj_dir/VCore

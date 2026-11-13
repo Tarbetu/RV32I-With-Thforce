@@ -24,9 +24,23 @@ int main(int argc, char** argv) {
   vcore->trace(tfp.get(), 99);
   tfp->open("dump.vcd");
 
+  for (unsigned i = 0; i < 2; ++i) {
+    vcore->reset = true;
+    vcore->clock = 0;
+    vcore->eval();
+    contextp->timeInc(1);
+    tfp->dump(contextp->time());
+
+    vcore->clock = 1;
+    vcore->eval();
+    contextp->timeInc(1);
+    tfp->dump(contextp->time());
+  };
+
   unsigned cycle = 0;
 
   while (cycle < CYCLE_LIMIT && !vcore->io_halt) {
+    vcore->reset = false;
     vcore->clock = 0;
     vcore->eval();
     contextp->timeInc(1);
